@@ -1,0 +1,20 @@
+# Python Virtual Environment
+.venv/
+
+# Python Cache & Compiled Files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment Variables & Secrets
+.env
+.env.local
+
+# Raw Data (CRITICAL for CodeLedger)
+data/raw/
+
+# Editor & OS Junk
+.vscode/
+.idea/
+.DS_Store
