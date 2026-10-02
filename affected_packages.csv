@@ -1,0 +1,2 @@
+osv_id,package_name,ecosystem,introduced,fixed,affected_versions
+PYSEC-2026-0001,examplepkg,PyPI,0,2.4.1,1.0;2.0;2.4.0

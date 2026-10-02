@@ -1,0 +1,2 @@
+osv_id,summary,details,published,modified,severity,aliases
+PYSEC-2026-0001,Path traversal in examplepkg's file handler,examplepkg before 2.4.1 doesn't sanitise user paths. O'Brien's report shows arbitrary file read.,2026-03-01T10:00:00Z,2026-03-05T12:30:00Z,CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N,CVE-2026-11111;GHSA-xxxx-yyyy-zzzz
