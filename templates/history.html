@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Scan history - CodeLedger{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('scan_results', pid=project.id) }}">Back to {{ project.name }}</a></p>
+<h1>Scan history</h1>
+{% if scans %}
+<div class="table-wrap"><table>
+<tr><th>Scan</th><th>Date</th><th>Status</th><th>Findings</th><th>New</th><th>Resolved</th></tr>
+{% for s in scans %}<tr><td>#{{ s.id }}</td><td>{{ s.date }}</td><td>{{ s.status|capitalize }}</td><td>{{ s.total }}</td><td>{{ s.new }}</td><td>{{ s.resolved }}</td></tr>{% endfor %}
+</table></div>
+{% else %}<div class="panel empty"><p>No scans yet for this project.</p></div>{% endif %}
+{% endblock %}

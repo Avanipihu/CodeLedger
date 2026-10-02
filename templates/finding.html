@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% from "_macros.html" import sev %}
+{% block title %}{{ f.vuln_id }} - CodeLedger{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('scan_results', pid=project.id) }}">Back to {{ project.name }}</a></p>
+<h1>{{ f.vuln_id }}</h1>
+<p>{{ sev(f.severity) }} Published score {{ f.score }}{% if f.kev %} <span class="badge kev">In CISA KEV</span>{% endif %}</p>
+<div class="panel"><p>{{ f.summary }}</p>
+<dl>
+<dt>Dependency</dt><dd>{{ f.package }} {{ f.version }}</dd>
+<dt>Affected range</dt><dd>{{ f.affected_range }}</dd>
+<dt>Fixed version</dt><dd>{{ f.fixed_in or "No fix published" }}</dd>
+<dt>Aliases</dt><dd>{{ f.aliases|join(", ") or "None" }}</dd>
+{% if f.kev %}<dt>KEV context</dt><dd>{{ f.kev_note }}</dd>{% endif %}
+</dl></div>
+<div class="panel"><h2>References</h2>
+{% for r in f.references %}<p><span class="muted">{{ r.type }}</span> <a href="{{ r.url }}" rel="noopener">{{ r.url }}</a></p>
+{% else %}<p class="muted">No references recorded.</p>{% endfor %}</div>
+<div class="panel"><h2>Explanation</h2><p class="muted">AI explanation arrives in Week 3.</p></div>
+{% endblock %}

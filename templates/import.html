@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Import dependencies - CodeLedger{% endblock %}
+{% block content %}
+<h1>Add project and import dependencies</h1>
+<form class="panel" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+  <p><label for="pname">Project name</label><input id="pname" name="project_name" size="40" placeholder="Inventory API"></p>
+  <p><label for="pdesc">Description</label><input id="pdesc" name="description" size="40"></p>
+  <p><label for="req">Dependency file</label><input id="req" type="file" name="requirements" accept=".txt"></p>
+  <p class="muted">Use a pinned file, for example <code>django==3.2.0</code>. Output from <code>pip freeze</code> works.</p>
+  <button class="btn" type="submit">Upload file</button>
+</form>
+<div class="notice">Week 1: the upload only prints the file to the server console. Matching is connected in Week 2.</div>
+{% endblock %}
