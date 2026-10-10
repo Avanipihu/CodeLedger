@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Data status - CodeLedger{% endblock %}
+{% block content %}
+<h1>Data status</h1>
+<div class="panel"><dl>
+<dt>Source</dt><dd>{{ snap.source }}</dd>
+<dt>Snapshot date</dt><dd>{{ snap.date }}</dd>
+<dt>Records imported</dt><dd>{{ "{:,}".format(snap.records) }}</dd>
+<dt>Status</dt><dd>{{ snap.status }}</dd>
+<dt>Parse errors</dt><dd>{{ snap.errors }}</dd>
+</dl></div>
+<p class="muted">Mock values. The Pioneer's ingestion logs replace these in Week 2.</p>
+{% endblock %}

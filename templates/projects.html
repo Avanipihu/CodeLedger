@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% from "_macros.html" import sev %}
+{% block title %}Projects - CodeLedger{% endblock %}
+{% block content %}
+<div class="row"><h1>Projects</h1><a class="btn" href="{{ url_for('new_project') }}">Add project</a></div>
+<p class="muted">Findings are known vulnerabilities in the local database. No match does not mean a package is safe.</p>
+{% if projects %}
+<div class="table-wrap"><table>
+<tr><th>Project</th><th>Dependencies</th><th>Findings</th><th>Last scan</th><th></th></tr>
+{% for p in projects %}
+<tr>
+  <td><a href="{{ url_for('scan_results', pid=p.id) }}"><b>{{ p.name }}</b></a><br><span class="muted">{{ p.description }}</span></td>
+  <td>{{ p.deps }}</td>
+  <td>{{ p.findings }}{% if p.critical %} ({{ p.critical }} critical){% endif %}</td>
+  <td>{{ p.last_scan or "Not scanned yet" }}</td>
+  <td><a href="{{ url_for('history', pid=p.id) }}">Scan history</a></td>
+</tr>{% endfor %}
+</table></div>
+{% else %}
+<div class="panel empty"><p>No projects yet. Add one and upload a pinned requirements.txt to start.</p></div>
+{% endif %}
+{% endblock %}
