@@ -18,6 +18,8 @@ import argparse
 import csv
 import json
 import logging
+import math
+import re
 import time
 import zipfile
 from pathlib import Path
@@ -157,6 +159,140 @@ def to_sql_inserts(rec):
             + ", ".join(_q(x) for x in row) + ");"
         )
     return stmts
+
+
+# ---------- Week 2: richer parse that matches Member B's schema.sql ----------
+from datetime import datetime
+
+_DT_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}:\d{2}))?")
+
+
+def _dt(v):
+    """OSV timestamp -> 'YYYY-MM-DD HH:MM:SS' (MySQL DATETIME) or None."""
+    m = _DT_RE.match(_s(v))
+    if not m:
+        return None
+    text = f"{m.group(1)} {m.group(2) or '00:00:00'}"
+    try:
+        datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return text
+
+
+def _roundup(x):
+    i = round(x * 100000)
+    return i / 100000.0 if i % 10000 == 0 else (math.floor(i / 10000) + 1) / 10.0
+
+
+def cvss3_base_score(vector):
+    """CVSS v3.x base score (0-10) from a vector string, or None if unusable."""
+    try:
+        m = dict(p.split(":", 1) for p in vector.split("/")[1:])
+        changed = m["S"] == "C"
+        av = {"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2}[m["AV"]]
+        ac = {"L": 0.77, "H": 0.44}[m["AC"]]
+        pr = {"N": 0.85, "L": 0.68 if changed else 0.62,
+              "H": 0.5 if changed else 0.27}[m["PR"]]
+        ui = {"N": 0.85, "R": 0.62}[m["UI"]]
+        cia = {"H": 0.56, "L": 0.22, "N": 0.0}
+        iss = 1 - (1 - cia[m["C"]]) * (1 - cia[m["I"]]) * (1 - cia[m["A"]])
+        impact = (7.52 * (iss - 0.029) - 3.25 * (iss - 0.02) ** 15) if changed \
+            else 6.42 * iss
+        expl = 8.22 * av * ac * pr * ui
+        if impact <= 0:
+            return 0.0
+        total = 1.08 * (impact + expl) if changed else impact + expl
+        return _roundup(min(total, 10))
+    except Exception:
+        return None
+
+
+def _severities(items):
+    out = []
+    for sev in _list(items):
+        sev = _dict(sev)
+        stype, score = _s(sev.get("type")), _s(sev.get("score"))
+        if not stype or not score:
+            continue
+        base = cvss3_base_score(score) if stype == "CVSS_V3" else None
+        out.append((stype[:30], score[:255], base, None))
+    return out
+
+
+def parse_osv_for_schema(raw):
+    """
+    Parse ONE OSV record into the shape Member B's tables need.
+    Returns dict with: vulnerability, aliases, severities, references,
+    affected (merged per package), warnings.  Raises ValueError if unusable.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("record is not a JSON object")
+    vid = _s(raw.get("id"))
+    if not vid:
+        raise ValueError("missing 'id'")
+    if len(vid) > 100:
+        raise ValueError("id longer than 100 characters")
+    warnings = []
+
+    vuln = {
+        "id": vid,
+        "schema_version": _s(raw.get("schema_version"))[:30] or None,
+        "summary": _s(raw.get("summary")) or None,
+        "details": _s(raw.get("details")) or None,
+        "published_at": _dt(raw.get("published")),
+        "modified_at": _dt(raw.get("modified")),
+        "withdrawn_at": _dt(raw.get("withdrawn")),
+    }
+
+    aliases = list(dict.fromkeys(
+        str(a).strip()[:100] for a in _list(raw.get("aliases"))
+        if isinstance(a, (str, int)) and str(a).strip()))
+
+    references = []
+    for ref in _list(raw.get("references")):
+        ref = _dict(ref)
+        url = _s(ref.get("url"))
+        if url:
+            references.append((_s(ref.get("type"))[:40] or "WEB", url[:2048]))
+
+    merged = {}
+    for entry in _list(raw.get("affected")):
+        entry = _dict(entry)
+        pkg = _dict(entry.get("package"))
+        name, eco = _s(pkg.get("name")), _s(pkg.get("ecosystem"))
+        if not name or not eco:
+            warnings.append("affected entry skipped: missing package name/ecosystem")
+            continue
+        a = merged.setdefault((eco, name), {
+            "ecosystem": eco[:100], "name": name[:255],
+            "purl": _s(pkg.get("purl"))[:512] or None,
+            "severities": [], "versions": [], "ranges": []})
+        a["severities"].extend(_severities(entry.get("severity")))
+        for v in _list(entry.get("versions")):
+            if isinstance(v, (str, int, float)) and str(v).strip():
+                a["versions"].append(str(v).strip()[:255])
+        for rng in _list(entry.get("ranges")):
+            rng = _dict(rng)
+            events = []
+            for ev in _list(rng.get("events")):
+                for etype, val in _dict(ev).items():
+                    if etype in ("introduced", "fixed", "last_affected", "limit") \
+                            and isinstance(val, (str, int, float)) and str(val).strip():
+                        events.append((len(events) + 1, etype, str(val).strip()[:255]))
+            if events:
+                a["ranges"].append({
+                    "ordinal": len(a["ranges"]) + 1,
+                    "type": _s(rng.get("type"))[:30] or "UNKNOWN",
+                    "repo": _s(rng.get("repo"))[:512] or None,
+                    "events": events})
+    for a in merged.values():
+        a["versions"] = list(dict.fromkeys(a["versions"]))
+
+    return {"vulnerability": vuln, "aliases": aliases,
+            "severities": _severities(raw.get("severity")),
+            "references": references, "affected": list(merged.values()),
+            "warnings": warnings}
 
 
 # ---------- reading sources: .json file, folder of .json, or .zip ----------
