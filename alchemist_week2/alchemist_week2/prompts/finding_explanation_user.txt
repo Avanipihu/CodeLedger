@@ -1,0 +1,12 @@
+FINDING
+Project: {project_name}
+Package: {package}
+Installed version: {version}
+Vulnerability ID: {vuln_id}
+Aliases: {aliases}
+Published severity: {severity}
+Fixed version: {fixed_version}
+KEV match: {kev}
+Advisory summary: {summary}
+
+Explain: (1) what the issue is, (2) why this installed version is affected, (3) what the developer should review next.

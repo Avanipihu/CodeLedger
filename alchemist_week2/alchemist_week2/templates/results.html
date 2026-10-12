@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Scan {{ scan.scan_id }} · SecureDep{% endblock %}
+{% block content %}
+<h1>{{ scan.project_name }}</h1>
+<p class="meta">Scan #{{ scan.scan_id }} · {{ scan.scan_date.strftime('%d %b %Y, %H:%M') if scan.scan_date.strftime is defined else scan.scan_date }} · {{ scan.status }}</p>
+
+<ul class="counts">
+  {% for b in order %}<li class="sev {{ b }}"><strong>{{ counts[b] }}</strong> {{ b }}</li>{% endfor %}
+</ul>
+
+{% if findings %}
+<table class="findings">
+  <thead><tr><th>Package</th><th>Installed</th><th>Vulnerability</th><th>Severity</th><th>Fixed in</th><th>KEV</th></tr></thead>
+  {% for f in findings %}
+  <tbody>
+    <tr>
+      <td>{{ f.package }}</td>
+      <td>{{ f.version }}</td>
+      <td>{{ f.vuln_id }}</td>
+      <td><span class="badge {{ f.band }}">{{ f.band }}</span></td>
+      <td>{{ f.fixed_version or 'none published' }}</td>
+      <td>{{ 'Yes' if f.kev else '–' }}</td>
+    </tr>
+    <tr class="detail"><td colspan="6">
+      <details><summary>Evidence</summary>
+        <p>{{ f.summary or 'No summary in the advisory.' }}</p>
+        {% if f.aliases %}<p class="small">Also known as: {{ f.aliases | join(', ') }}</p>{% endif %}
+        {# Week 3: AI explanation button goes here #}
+      </details>
+    </td></tr>
+  </tbody>
+  {% endfor %}
+</table>
+{% else %}
+<p class="empty">No known vulnerabilities matched in the local database. This is not proof the dependencies are safe: only ingested advisories were checked.</p>
+{% endif %}
+<p><a href="{{ url_for('index') }}">Scan another file</a></p>
+{% endblock %}
