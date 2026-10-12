@@ -1,73 +1,15 @@
-CodeLedgerAutomated Software Supply Chain Security & Local OSV Dependency AuditorCodeLedger is an enterprise-grade software supply chain security tool designed to audit application dependencies against open-source vulnerability datasets. By localizing Open Source Vulnerabilities (OSV) data from PyPI into a hybrid relational and document persistence layer, CodeLedger allows engineering teams to parse manifest files (requirements.txt), execute version range matching algorithms, and generate AI-ready contextual remediation intelligence—completely offline.   📋 Table of ContentsKey FeaturesSystem ArchitectureProject StructureTeam Roles & ResponsibilitiesInstallation & SetupUsage & Execution FlowAI Remediation IntegrationDevelopment RoadmapLicense🎯 Key FeaturesLocal Data Localization: Ingests PyPI vulnerability snapshots directly into local storage for air-gapped security auditing.   Hybrid Database Storage: Combines MySQL for relational schema constraints with MongoDB for rich, nested JSON vulnerability payloads.   Semantic Range Matching Engine: Evaluates exact version specifications and range operators against vulnerability fix bounds.   Interactive Web Interface: Modern Flask dashboard to upload manifest files, review vulnerability findings, and examine project risk histories.   LLM-Powered Remediation: Contextual prompt engineering pipelines that convert raw vulnerability IDs into actionable developer fix guides.   🏗️ System ArchitectureCodeLedger utilizes a dual-database architecture to strike a balance between fast, indexable relational lookups and unstructured document flexibility:                        ┌────────────────────────┐
-                     │ OSV Data Source (PyPI) │
-                     └───────────┬────────────┘
-                                 │
-                                 ▼
-                     ┌────────────────────────┐
-                     │ Ingestion Engine       │
-                     │ (ingest.py / parser)   │
-                     └───────────┬────────────┘
-                                 │
-                 ┌───────────────┴───────────────┐
-                 ▼                               ▼
-       ┌───────────────────┐           ┌───────────────────┐
-       │   MySQL Server    │           │ MongoDB Database  │
-       │ Relational Engine │           │ Document Store    │
-       │  (Schema / Seed)  │           │   (Raw OSV JSON)  │
-       └─────────┬─────────┘           └─────────┬─────────┘
-                 │                               │
-                 └───────────────┬───────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │ Engine & Range Matcher  │
-                    │ (engine.py / matcher)   │
-                    └────────────┬────────────┘
-                                 │
-                                 ▼
-                    ┌─────────────────────────┐
-                    │ Flask Web UI (app.py)   │
-                    │ & LLM Prompt Pipeline   │
-                    └─────────────────────────┘
-MySQL Relational Database: Stores canonical package indexes, normalized severity tags, explicit version boundaries, and execution metadata.   MongoDB Document Store: Preserves complete OSV schema documents, credit annotations, external link references, and detailed vulnerability notes.   📁 Project StructurePlaintextCodeLedger/
-├── static/
-│   └── style.css                 # Custom application UI styles
-├── templates/
-│   ├── base.html                 # Base layout template
-│   ├── explorer.html             # Vulnerability database search interface
-│   ├── finding.html              # Individual vulnerability finding page
-│   ├── history.html              # Historical scan audit logs
-│   ├── import.html               # Manifest file upload portal
-│   ├── projects.html             # Project inventory view
-│   ├── results.html              # Interactive scan results display
-│   └── status.html               # Database health and status dashboard
-├── prompts/
-│   └── explanation_prompt.txt    # Prompt template for LLM integration
-├── affected_packages.csv         # Standardized CSV dump of package mappings[cite: 2]
-├── app.py                        # Primary Flask web server application
-├── crud_test.py                  # Functional integration tests for database operations
-├── download_snapshot.py          # OSV PyPI snapshot acquisition tool
-├── engine.py                     # Main cross-database matching engine
-├── ingest.py                     # Data ETL pipeline execution script
-├── matcher.py                    # Semantic version comparison algorithms
-├── osv_parser.py                 # PyPI JSON schema parser
-├── requirements.txt              # Application python runtime dependencies
-├── schema.sql                    # MySQL relational schema definitions[cite: 1, 2]
-├── seed.sql                      # Baseline database seed records[cite: 1, 2]
-└── vulnerabilities.csv           # Normalized vulnerability export file[cite: 2]
-👥 Team Roles & ResponsibilitiesThe system was constructed using a modular four-persona development model[cite: 1, 2]:RolePersonaResponsibilities & Core ArtifactsData EngineerPioneerData pipeline acquisition, parsing scripts (osv_parser.py, download_snapshot.py), and full ETL database ingestion (ingest.py)[cite: 1, 2].Database ArchitectArchitectDatabase normalized schema design (schema.sql), seed fixtures (seed.sql), view constraints, and query indexing optimizations[cite: 1, 2].Backend CoreWeaverSemantic version matching logic (matcher.py), ID bridging, and cross-database correlation engine (engine.py)[cite: 1, 2].Frontend & AIAlchemistFlask web app routing (app.py), dynamic template rendering (templates/), and prompt engineering (prompts/explanation_prompt.txt)[cite: 1, 2].⚙️ Installation & SetupPrerequisitesPython: Version 3.9 or higherMySQL Server: Version 8.0 or higher (listening on default port 3306)MongoDB Server: Version 5.0 or higher (listening on default port 27017)Step 1: Clone RepositoryBashgit clone https://github.com/Avanipihu/CodeLedger.git
-cd CodeLedger
-Step 2: Environment SetupCreate and activate a isolated Python virtual environment:Bash# Linux/macOS
-python3 -m venv venv
-source venv/bin/activate
+## CodeLedger: Comprehensive Project Overview
+CodeLedger is an open-source supply chain security platform that localizes PyPI vulnerability data to audit application dependencies offline. The platform parses Open Source Vulnerabilities (OSV) records into a hybrid database architecture, correlates uploaded dependency manifests against known vulnerability ranges, and formats actionable security insights for developers.  
 
-# Windows (Git Bash)
-python -m venv venv
-source venv/Scripts/activate
-Install the dependencies:Bashpip install -r requirements.txt
-Step 3: Database InitializationStart your local MySQL and MongoDB services.Initialize the MySQL database schema and seed data:Bashmysql -u root -p -e "CREATE DATABASE IF NOT EXISTS codeledger;"
-mysql -u root -p codeledger < schema.sql
-mysql -u root -p codeledger < seed.sql
-Step 4: Run Data Ingestion PipelineExecute the ETL script to populate your local database store with vulnerability snapshot data:Bashpython ingest.py
-🚀 Usage & Execution Flow1. Launch Web ApplicationRun the Flask development server:Bashpython app.py
-Open your browser and navigate to [http://127.0.0.1:5000](http://127.0.0.1:5000)[cite: 2].2. Scanning Dependency ManifestsNavigate to the Import tab on the web UI[cite: 1, 2].Upload a standard target requirements.txt manifest file containing pinned package dependencies (e.g., requests==2.25.1)[cite: 1, 2].The platform executes engine.py, querying MySQL and MongoDB instances for matching vulnerabilities[cite: 1, 2].View the matched findings, severity rankings, and detailed vulnerability descriptions on the interactive Results screen[cite: 1, 2].🤖 AI Remediation IntegrationCodeLedger features a built-in context generator for LLM analysis[cite: 1, 2]. When vulnerability matches are generated, findings are formatted into the prompt template stored at prompts/explanation_prompt.txt[cite: 1, 2].The generated prompt provides an LLM with structured context including:Affected package name and active installed version[cite: 1, 2].CVE/OSV unique identifiers[cite: 1, 2].Relational fix version constraints[cite: 1, 2].This structure enables an LLM to generate plain-language explanations of underlying vulnerability risks along with exact upgrade command sequences without hallucinating data[cite: 1, 2].🏁 Development RoadmapWeek 1: Foundation (Decoupled Construction)Completed parser prototypes, baseline database schemas, unit matcher tests, and Flask web scaffold[cite: 1, 2].Week 2: Integration (Wiring the Grid)End-to-end integration between MySQL/MongoDB ingestion pipelines, matching engines, web UI routes, and AI prompt drafting[cite: 1, 2].Week 3: Hardening (The Crucible)Offline reproducibility validation, disjoint range handling, cross-database ID consistency, database indexing, and performance tuning[cite: 1, 2].
+## 1. Core Objectives and Value PropositionOffline Vulnerability Auditing: 
+
+Localizes PyPI vulnerability data so security teams can scan dependency manifests without relying on live external APIs during deployment.   Hybrid Storage Architecture: Combines MySQL for relational schema constraints and indexing with MongoDB for flexible JSON document storage.   Semantic Version Range Matching: Compares uploaded package versions against vulnerability bounds to identify precise security matches.   AI-Assisted Remediation: Prepares structured vulnerability contexts for large language models to generate clear fix recommendations.  
+## 2. Team Personas and Core ResponsibilitiesThe Pioneer (Data Engineering):
+Builds the ETL pipeline (ingest.py) to parse raw OSV JSON snapshots (osv_parser.py) and write structured data directly to local MySQL and MongoDB instances.   The Architect (Database Architecture): Designs the relational database schema (schema.sql), provides seed data (seed.sql), writes complex JOIN queries (queries.sql), and optimizes indexes for heavy workloads.   The Weaver (Core Engine): Develops the core matching engine (engine.py, matcher.py) to query database records, compare version ranges, and reconcile relational and document object identifiers.   The Alchemist (Web UI and AI Integration): Constructs the Flask web interface (app.py, templates/), manages file upload endpoints for dependency manifests, and drafts the AI explanation prompt templates (prompts/explanation_prompt.txt).  
+## 3. Directory and File Descriptionsapp.py: 
+The main Flask application server that manages HTTP routes, handles file uploads, invokes the matching engine, and renders templates.   engine.py / matcher.py: The backend logic modules that parse package specifications and compare versions against MySQL and MongoDB vulnerability tables.   ingest.py / osv_parser.py: The data pipeline scripts that process raw OSV JSON files and populate the relational and document databases.   download_snapshot.py: A utility script designed to pull the latest OSV PyPI vulnerability dataset snapshot for local ingestion.   schema.sql / seed.sql: SQL scripts that define database tables, foreign key constraints, indexes, views, and initial baseline mock data.   crud_test.py: A functional testing script that verifies basic create, read, update, and delete database operations.   templates/: HTML templates used by Flask to render the file upload interface (import.html), interactive scan findings (results.html), database views (explorer.html), and system metrics (status.html).   static/style.css: The primary stylesheet that defines the layout and visual presentation of the web interface.   prompts/explanation_prompt.txt: A structured prompt template designed to pass vulnerability findings to an AI model for plain-language risk summaries and upgrade instructions.   
+## 4. End-to-End System WorkflowDataset Ingestion: 
+The Pioneer executes ingest.py to parse OSV records, populating MySQL relational tables and MongoDB document collections.   Manifest Upload: A developer accesses the Flask web portal at import.html and uploads a target requirements.txt manifest file.   Engine Execution: The Alchemist's application endpoint sends the parsed package specifications to the Weaver's matching engine (engine.py).   Database Querying: The engine searches MySQL for matching package version constraints and pulls deep JSON context from MongoDB using mapped identifiers.  
+
+## Results Presentation:
+The Web UI dynamically renders matched CVE/OSV IDs, severity ratings, and vulnerability details on results.html.   AI Explanation Generation: The Alchemist feeds finding contexts into prompts/explanation_prompt.txt so an AI can generate plain-language explanations and exact upgrade commands.
