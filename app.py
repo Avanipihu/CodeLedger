@@ -1,80 +1,53 @@
-"""CodeLedger - Flask app (Week 1 scaffold, mock data only)."""
-from flask import Flask, render_template, request, redirect, url_for, flash, abort
-import mock_data as data
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash
+# Import Weaver's matching engine from your repository
+from engine import run_matching_engine
 
 app = Flask(__name__)
-app.secret_key = "dev-only-change-me"
-app.config["MAX_CONTENT_LENGTH"] = 256 * 1024  # 256 KB upload cap
+app.secret_key = "alchemist-secret-key"
+app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
 
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-@app.route("/")
-def projects():
-    return render_template("projects.html", projects=data.get_projects())
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('import.html')
 
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        flash('No file part uploaded.')
+        return redirect(url_for('index'))
+    
+    file = request.files['file']
+    if file.filename == '':
+        flash('No selected file.')
+        return redirect(url_for('index'))
 
-@app.route("/projects/new")
-def new_project():
-    return render_template("import.html")
+    if file and file.filename.endswith('.txt'):
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(filepath)
 
+        # Parse requirements.txt lines into (package_name, version) tuples
+        packages = []
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '==' in line:
+                    parts = line.split('==')
+                    packages.append((parts[0].strip(), parts[1].strip()))
 
-@app.route("/projects/<int:pid>")
-def scan_results(pid):
-    project = data.get_project(pid) or abort(404)
-    sev = request.args.get("severity") or None
-    kev = request.args.get("kev") == "1"
-    return render_template("results.html", project=project,
-                           findings=data.get_findings(pid, sev, kev),
-                           sel=(sev or "").lower(), kev=kev)
+        # Trigger Weaver's matching engine
+        try:
+            findings = run_matching_engine(packages)
+        except Exception as e:
+            findings = []
+            flash(f"Error executing matching engine: {str(e)}")
 
+        return render_template('results.html', findings=findings, filename=file.filename)
 
-@app.route("/findings/<int:fid>")
-def finding_detail(fid):
-    f = data.get_finding(fid) or abort(404)
-    return render_template("finding.html", f=f, project=data.get_project(f["project_id"]))
+    flash('Invalid file format. Please upload a .txt file.')
+    return redirect(url_for('index'))
 
-
-@app.route("/explorer")
-def explorer():
-    q = request.args.get("q", "")
-    return render_template("explorer.html", q=q, results=data.search_vulns(q))
-
-
-@app.route("/projects/<int:pid>/history")
-def history(pid):
-    project = data.get_project(pid) or abort(404)
-    return render_template("history.html", project=project, scans=data.get_scans(pid))
-
-
-@app.route("/status")
-def status():
-    return render_template("status.html", snap=data.SNAPSHOT)
-
-
-# ---- Week 1 dummy endpoint: accepts requirements.txt, only prints it ----
-@app.route("/upload", methods=["POST"])
-def upload():
-    file = request.files.get("requirements")
-    if not file or file.filename == "":
-        flash("Choose a requirements.txt file to upload.", "error")
-        return redirect(url_for("new_project"))
-    try:
-        text = file.read().decode("utf-8")
-    except UnicodeDecodeError:
-        flash("That file is not plain text. Upload a requirements.txt file.", "error")
-        return redirect(url_for("new_project"))
-    # Treated as plain text only: never executed.
-    print("=" * 40, f"\nReceived: {file.filename}\n", "=" * 40)
-    print(text)
-    # TODO Week 2: from matcher import ...  then pass `text` to the Weaver's logic.
-    flash(f"Received {file.filename} ({len(text.splitlines())} lines). Parsing is not connected yet.", "ok")
-    return redirect(url_for("new_project"))
-
-
-@app.errorhandler(413)
-def too_large(_):
-    flash("File is too large. Upload a file under 256 KB.", "error")
-    return redirect(url_for("new_project"))
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
