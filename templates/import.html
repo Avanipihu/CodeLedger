@@ -3,7 +3,6 @@
 {% block content %}
 <h1>Add project and import dependencies</h1>
 
-<!-- Flash Messages Block for Validation / Error Alerts -->
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     {% for category, message in messages %}
