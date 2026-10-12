@@ -2,12 +2,24 @@
 {% block title %}Import dependencies - CodeLedger{% endblock %}
 {% block content %}
 <h1>Add project and import dependencies</h1>
-<form class="panel" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+
+<!-- Flash Messages Block for Validation / Error Alerts -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show" role="alert" style="margin-bottom: 1rem; padding: 0.75rem 1.25rem; border-radius: 4px; background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<form class="panel" method="post" action="{{ url_for('upload_file') }}" enctype="multipart/form-data">
   <p><label for="pname">Project name</label><input id="pname" name="project_name" size="40" placeholder="Inventory API"></p>
   <p><label for="pdesc">Description</label><input id="pdesc" name="description" size="40"></p>
-  <p><label for="req">Dependency file</label><input id="req" type="file" name="requirements" accept=".txt"></p>
+  <!-- Changed name="requirements" to name="file" to match app.py -->
+  <p><label for="req">Dependency file</label><input id="req" type="file" name="file" accept=".txt"></p>
   <p class="muted">Use a pinned file, for example <code>django==3.2.0</code>. Output from <code>pip freeze</code> works.</p>
   <button class="btn" type="submit">Upload file</button>
 </form>
-<div class="notice">Week 1: the upload only prints the file to the server console. Matching is connected in Week 2.</div>
 {% endblock %}
