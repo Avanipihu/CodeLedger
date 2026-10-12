@@ -1,34 +1,46 @@
-{% extends "base.html" %}{% from "_macros.html" import sev %}
-{% block title %}{{ project.name }} - CodeLedger{% endblock %}
+{% extends "base.html" %}
+
 {% block content %}
-<div class="row"><div><h1>{{ project.name }}</h1><p class="muted">Last scan: {{ project.last_scan or "Not scanned yet" }}</p></div>
-<a class="btn alt" href="{{ url_for('history', pid=project.id) }}">Scan history</a></div>
-<div class="panel stats">
-  <div><b>{{ project.deps }}</b>dependencies</div>
-  <div><b>{{ project.findings }}</b>findings</div>
-  <div><b>{{ project.critical }}</b>critical</div>
+<div class="container mt-4">
+    <h2>Scan Findings for <code>{{ filename }}</code></h2>
+    
+    {% if findings %}
+        <div class="alert alert-warning mt-3">
+            <strong>Vulnerabilities Detected!</strong> Below are the matched entries from the database.
+        </div>
+
+        <table class="table table-bordered table-striped mt-3">
+            <thead class="table-dark">
+                <tr>
+                    <th>Package</th>
+                    <th>Installed Version</th>
+                    <th>Vulnerability ID</th>
+                    <th>Severity</th>
+                    <th>Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for finding in findings %}
+                <tr>
+                    <td><strong>{{ finding.package_name if finding.package_name else finding.get('package') }}</strong></td>
+                    <td>{{ finding.version if finding.version else finding.get('version') }}</td>
+                    <td><code>{{ finding.vulnerability_id if finding.vulnerability_id else finding.get('id') }}</code></td>
+                    <td>
+                        <span class="badge bg-danger">
+                            {{ finding.severity if finding.severity else 'HIGH' }}
+                        </span>
+                    </td>
+                    <td>{{ finding.summary if finding.summary else finding.get('details', 'N/A') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="alert alert-success mt-3">
+            <strong>Clean Scan!</strong> No vulnerability matches were found.
+        </div>
+    {% endif %}
+
+    <a href="/" class="btn btn-primary mt-3">Upload Another Manifest</a>
 </div>
-<form class="filters" method="get">
-  <div><label for="sev">Severity</label>
-  <select id="sev" name="severity"><option value="">All</option>
-  {% for s in ["critical","high","medium","low"] %}<option value="{{ s }}" {{ "selected" if sel == s }}>{{ s|capitalize }}</option>{% endfor %}</select></div>
-  <div><label><input type="checkbox" name="kev" value="1" {{ "checked" if kev }}> In CISA KEV only</label></div>
-  <button class="btn" type="submit">Apply filters</button>
-</form>
-{% if findings %}
-<div class="table-wrap"><table>
-<tr><th>Package</th><th>Vulnerability</th><th>Severity</th><th>Affected range</th><th>Fixed in</th><th>KEV</th></tr>
-{% for f in findings %}
-<tr>
-  <td><b>{{ f.package }}</b> {{ f.version }}</td>
-  <td><a href="{{ url_for('finding_detail', fid=f.id) }}">{{ f.vuln_id }}</a><br><span class="muted">{{ f.summary }}</span></td>
-  <td>{{ sev(f.severity) }} {{ f.score }}</td>
-  <td>{{ f.affected_range }}</td>
-  <td>{{ f.fixed_in or "No fix published" }}</td>
-  <td>{% if f.kev %}<span class="badge kev">Yes</span>{% else %}No{% endif %}</td>
-</tr>{% endfor %}
-</table></div>
-{% else %}
-<div class="panel empty"><p>No known vulnerabilities matched these filters. This is not proof the project is safe.</p></div>
-{% endif %}
 {% endblock %}
