@@ -1,5 +1,6 @@
-feature/osv-parser
-pymysql
-pymongo
-Flask>=3.0
- main
+Flask>=3.0.0
+pymysql>=1.1.0
+pymongo>=4.6.0
+packaging>=24.0
+python-dotenv>=1.0.0
+mysql-connector-python>=8.0.0
