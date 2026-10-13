@@ -1,36 +1,40 @@
 """
-Evaluates simulated input and writes confirmed findings to the database.
+engine.py
+The restored Logic Weaver engine. Evaluates package versions against MySQL ranges 
+using PEP 440 logic, retrieves MongoDB context, and returns findings to the Flask UI.
 """
 import os
-import sys
-import mysql.connector
+import pymysql
+import pymongo
 from dotenv import load_dotenv
+
+# Restore the Interface Contract by importing your robust Week 1 logic
+from matcher import is_vulnerable  
 
 load_dotenv()
 
-def establish_relational_link():
-    """Forge a universal connection to the local MariaDB instance."""
-    try:
-        conn = mysql.connector.connect(
-            user="root",
-            password=os.getenv("DB_PASSWORD", ""), 
-            host="127.0.0.1",
-            port=3306,
-            database="codeledger"
-        )
-        return conn
-    except mysql.connector.Error as e:
-        print(f"[-] Relational Error: {e}")
-        sys.exit(1)
+def get_mysql_connection():
+    """Forges a connection to the MySQL relational core using environment variables."""
+    return pymysql.connect(
+        host=os.getenv('MYSQL_HOST', '127.0.0.1'),
+        user=os.getenv('MYSQL_USER', 'root'),
+        password=os.getenv('MYSQL_PASSWORD', ''),
+        database=os.getenv('MYSQL_DB', 'codeledger'),
+        cursorclass=pymysql.cursors.DictCursor
+    )
 
-def extract_vulnerability_ranges(conn, package_name):
-    """Retrieves all known vulnerability ranges and their specific IDs."""
-    cursor = conn.cursor(dictionary=True)
+def get_mongo_collection():
+    """Summons the MongoDB document vault for raw advisory context."""
+    client = pymongo.MongoClient(os.getenv('MONGO_URI', 'mongodb://localhost:27017/'))
+    db = client[os.getenv('MONGO_DB', 'codeledger')]
+    return db['vulnerabilities']
+
+def extract_vulnerability_ranges(cursor, package_name):
+    """Retrieves all known vulnerability boundaries from MySQL for a given package."""
     query = """
         SELECT 
             p.name AS package_name,
             v.vulnerability_id,
-            ar.range_id,
             re_intro.event_value AS introduced_version,
             re_fixed.event_value AS fixed_version
         FROM packages p
@@ -44,98 +48,71 @@ def extract_vulnerability_ranges(conn, package_name):
         WHERE p.name = %s;
     """
     cursor.execute(query, (package_name,))
-    results = cursor.fetchall()
-    cursor.close()
-    return results
+    return cursor.fetchall()
 
-def parse_version(version_string):
-    """Converts a semantic version string into a mathematical tuple."""
-    if not version_string or version_string == "0":
-        return (0,)
+def run_matching_engine(packages: list[tuple[str, str]]) -> list[dict]:
+    """
+    The Missing Bridge. 
+    Accepts: A list of tuples containing (package_name, pinned_version).
+    Returns: A list of dictionaries representing confirmed vulnerabilities to be rendered.
+    """
+    findings = []
+    
+    # Establish dual-database connections
+    mysql_conn = get_mysql_connection()
+    mongo_col = get_mongo_collection()
+    
     try:
-        return tuple(int(part) for part in version_string.split('.'))
-    except ValueError:
-        return (version_string,)
-
-def is_vulnerable(pinned_version, introduced, fixed):
-    """Determines if a version lies strictly within the vulnerable range."""
-    pinned = parse_version(pinned_version)
-    intro = parse_version(introduced)
-    
-    if pinned < intro:
-        return False
-        
-    if fixed:
-        fix = parse_version(fixed)
-        if pinned >= fix:
-            return False
-            
-    return True
-
-def write_finding(conn, vulnerability_id, range_id):
-    """
-    The Conclusive Write: Commits a confirmed vulnerability to MariaDB.
-    Uses INSERT IGNORE to gracefully skip duplicate findings without crashing.
-    """
-    cursor = conn.cursor()
-    # INSERT IGNORE tells MariaDB to skip this row if the unique constraint
-    # (scan_id + dependency_id + vulnerability_id) is violated.
-    query = """
-        INSERT IGNORE INTO scan_findings
-        (finding_id, scan_id, dependency_id, vulnerability_id, matched_range_id, match_basis)
-        SELECT COALESCE(MAX(finding_id), 9000) + 1, 9101, 8001, %s, %s, 'RANGE'
-        FROM scan_findings;
-    """
-    cursor.execute(query, (vulnerability_id, range_id))
-    
-    # We can check if MariaDB actually wrote a new row or ignored a duplicate
-    if cursor.rowcount > 0:
-        print("      -> [SUCCESS] New finding recorded in MariaDB.")
-    else:
-        print("      -> [SKIPPED] Finding already exists in this scan. Ignoring duplicate.")
-        
-    conn.commit()  # Seal the transaction
-    cursor.close()
-
-if __name__ == "__main__":
-    print("[*] Igniting the Logic Weaver Engine - Conclusive Write...\n")
-    db_connection = establish_relational_link()
-    
-    simulated_requirements = [
-        ("demo-http-client", "1.0.0"),  # VULNERABLE -> triggers database write
-        ("demo-safe-lib", "1.0.0"),     # SAFE -> ignored
-        ("demo-parser", "1.4.5"),       # VULNERABLE -> triggers database write
-        ("demo-parser", "2.1.0"),       # SAFE -> ignored
-    ]
-    
-    print("[*] Processing requirements and writing findings to database...\n")
-    
-    findings_written = 0
-    for pkg_name, pinned_version in simulated_requirements:
-        print(f"> Evaluating {pkg_name} @ v{pinned_version}")
-        ranges = extract_vulnerability_ranges(db_connection, pkg_name)
-        
-        if not ranges:
-            print("  [+] SAFE: No known vulnerabilities in the database.\n")
-            continue
-            
-        package_is_safe = True
-        for vuln in ranges:
-            if is_vulnerable(pinned_version, vuln['introduced_version'], vuln['fixed_version']):
-                package_is_safe = False
-                vuln_id = vuln['vulnerability_id']
-                range_id = vuln['range_id']
+        with mysql_conn.cursor() as cursor:
+            for pkg_name, pinned_version in packages:
                 
-                print(f"  [!] VULNERABLE: Matches {vuln_id}.")
-                print(f"      -> Writing record to MariaDB (Range ID: {range_id})...")
+                # Step 1: Query MySQL for relational ranges
+                ranges = extract_vulnerability_ranges(cursor, pkg_name)
                 
-                # Execute Step 4
-                write_finding(db_connection, vuln_id, range_id)
-                findings_written += 1
-                
-        if package_is_safe:
-            print("  [+] SAFE: Version falls outside all known vulnerable ranges.")
-        print("-" * 45)
+                if not ranges:
+                    continue  # Safe package, bypass logic
+                    
+                for vuln in ranges:
+                    intro = vuln.get('introduced_version')
+                    fixed = vuln.get('fixed_version')
+                    
+                    # Step 2: Dynamically construct a PEP 440 specifier string
+                    range_str = ""
+                    if intro and intro != "0":
+                        range_str += f">= {intro}"
+                    if fixed:
+                        range_str += f", < {fixed}" if range_str else f"< {fixed}"
+                        
+                    if not range_str:
+                        continue # Edge case fallback
+                    
+                    # Step 3: Invoke the robust matcher logic
+                    try:
+                        if is_vulnerable(pinned_version, range_str):
+                            vuln_id = vuln['vulnerability_id']
+                            
+                            # Step 4: Query MongoDB for nested advisory context
+                            raw_advisory = mongo_col.find_one({"id": vuln_id}) or {}
+                            summary = raw_advisory.get("summary", "No summary available.")
+                            
+                            # Parse nested severity array if it exists
+                            severity_data = raw_advisory.get("severity", [])
+                            severity = severity_data[0].get("score", "UNKNOWN") if severity_data else "UNKNOWN"
+                            
+                            # Step 5: Append a structured dictionary for the Flask UI
+                            findings.append({
+                                "package_name": pkg_name,
+                                "version": pinned_version,
+                                "vulnerability_id": vuln_id,
+                                "severity": severity,
+                                "summary": summary
+                            })
+                            
+                    except ValueError as e:
+                        # Catch malformed strings without crashing the entire scan
+                        print(f"[!] Evaluation error for {pkg_name} {pinned_version}: {e}")
+                        
+    finally:
+        mysql_conn.close() # Ensure the relational link is properly severed
         
-    db_connection.close()
-    print(f"\n[*] Engine execution complete. Successfully wrote {findings_written} findings to the database.")
+    return findings
