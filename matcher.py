@@ -1,5 +1,4 @@
 """
-matcher.py
 Deterministic PEP 440 version matching engine for CodeLedger.
 Resolves the SpecifierSet prerelease exclusion quirk using direct Version math.
 """
