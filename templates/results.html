@@ -6,7 +6,7 @@
     
     {% if findings %}
         <div class="alert alert-warning mt-3">
-            <strong>Vulnerabilities Detected!</strong> Below are the matched entries from the database.
+            <strong>Vulnerabilities Detected!</strong> Below are the matched entries from the database. Click <strong>Generate AI Explanation</strong> on flagged packages to view mitigation steps.
         </div>
 
         <table class="table table-bordered table-striped mt-3">
@@ -17,6 +17,7 @@
                     <th>Vulnerability ID</th>
                     <th>Severity</th>
                     <th>Summary</th>
+                    <th>AI Explanation</th>
                 </tr>
             </thead>
             <tbody>
@@ -31,10 +32,25 @@
                         </span>
                     </td>
                     <td>{{ finding.summary if finding.summary else finding.get('details', 'N/A') }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info text-white" onclick='getAIExplanation({{ finding | tojson }})'>
+                            Generate AI Explanation
+                        </button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- Interactive AI Explanation Card -->
+        <div id="ai-explanation-box" class="card mt-4" style="display:none;">
+            <div class="card-header bg-dark text-white">
+                <strong>AI Finding Explanation & Remediation Guide</strong>
+            </div>
+            <div class="card-body">
+                <pre id="ai-explanation-content" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre>
+            </div>
+        </div>
     {% else %}
         <div class="alert alert-success mt-3">
             <strong>Clean Scan!</strong> No vulnerability matches were found.
@@ -43,4 +59,26 @@
 
     <a href="/" class="btn btn-primary mt-3">Upload Another Manifest</a>
 </div>
+
+<script>
+function getAIExplanation(findingData) {
+    const box = document.getElementById('ai-explanation-box');
+    const content = document.getElementById('ai-explanation-content');
+    box.style.display = 'block';
+    content.innerText = 'Analyzing vulnerability context and generating remediation steps...';
+
+    fetch('/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(findingData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        content.innerText = data.explanation;
+    })
+    .catch(err => {
+        content.innerText = 'Error generating explanation: ' + err;
+    });
+}
+</script>
 {% endblock %}
