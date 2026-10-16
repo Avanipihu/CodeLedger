@@ -1,19 +1,16 @@
 import os
 import pymysql
 import pymongo
-from flask import Flask, render_template, request, redirect, url_for, flash
-
-# 1. Fixed Import Interface with Person 3 (Weaver)
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from engine import run_matching_engine
 
 app = Flask(__name__)
 app.secret_key = "alchemist-secret-key"
 app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2 MB max file size limit
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB file limit
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Database Helper Functions
 def get_db_connection():
     return pymysql.connect(
         host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -28,6 +25,32 @@ def get_mongo_collection():
     db = client[os.getenv('MONGO_DB', 'codeledger')]
     return db['vulnerabilities']
 
+def load_ai_prompt_template():
+    prompt_path = os.path.join(os.getcwd(), 'prompts', 'explanation_prompt.txt')
+    if os.path.exists(prompt_path):
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return "Explain vulnerability {vulnerability_id} for package {package_name} v{installed_version}."
+
+def generate_ai_explanation(finding):
+    template = load_ai_prompt_template()
+    prompt = template.format(
+        package_name=finding.get('package_name', finding.get('package', 'Unknown')),
+        installed_version=finding.get('version', 'Unknown'),
+        vulnerability_id=finding.get('vulnerability_id', finding.get('id', 'N/A')),
+        vulnerability_summary=finding.get('summary', 'No summary provided.'),
+        fixed_version=finding.get('fixed_version', 'See advisory')
+    )
+    
+    # Offline / Fallback Local Explanation Builder
+    explanation = (
+        f"Security Risk Analysis for {finding.get('vulnerability_id', 'Vulnerability')}:\n\n"
+        f"1. Explanation: The installed version ({finding.get('version')}) of "
+        f"'{finding.get('package_name', finding.get('package'))}' contains a known security flaw: {finding.get('summary')}.\n"
+        f"2. Potential Impact: Unauthenticated remote attackers may exploit this issue to trigger denial of service or unauthorized data exposure in production.\n"
+        f"3. Remediation Command: Run `pip install --upgrade {finding.get('package_name', finding.get('package'))}` to update to a non-vulnerable release."
+    )
+    return explanation
 
 @app.route('/', methods=['GET'])
 def index():
@@ -35,60 +58,58 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Poison Pill Handled Upload Endpoint"""
-    if 'file' not in request.files:
-        flash('No file part provided in the request.', 'danger')
+    if 'file' not in request.files and 'requirements' not in request.files:
+        flash('No file part provided in request.', 'danger')
         return redirect(url_for('index'))
     
-    file = request.files['file']
+    file = request.files.get('file') or request.files.get('requirements')
     
     if not file or file.filename == '':
-        flash('No file selected. Please choose a requirements.txt file.', 'warning')
+        flash('No file selected. Please select a valid requirements.txt file.', 'warning')
         return redirect(url_for('index'))
 
-    # Reject non-text/invalid files
-    if not file.filename.endswith('.txt'):
-        flash('Invalid file type! Only plain text (.txt) files are accepted.', 'danger')
+    # Edge Case Handler: Reject non-txt uploads (e.g., cat images, binary files)
+    if not file.filename.lower().endswith('.txt'):
+        flash('Invalid file format. Only plain text manifest files (.txt) are supported.', 'danger')
         return redirect(url_for('index'))
 
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
     file.save(filepath)
 
-    packages = []
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-            
+
         if not lines or all(not line.strip() for line in lines):
-            flash('Uploaded file is completely empty.', 'warning')
+            flash('Uploaded file is empty.', 'warning')
             return redirect(url_for('index'))
 
-        for line_num, line in enumerate(lines, 1):
+        packages = []
+        for line in lines:
             line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '==' in line:
-                pkg_name, version = line.split('==', 1)
-                packages.append((pkg_name.strip(), version.strip()))
-            else:
-                # Basic check for unpinned or malformed lines
-                pass
+            if line and not line.startswith('#') and '==' in line:
+                parts = line.split('==', 1)
+                packages.append((parts[0].strip(), parts[1].strip()))
 
         if not packages:
-            flash('No valid pinned dependencies (e.g. package==1.0.0) found in file.', 'warning')
+            flash('No pinned dependencies (e.g., package==1.0.0) found in the file.', 'warning')
             return redirect(url_for('index'))
 
-        # Invoke Weaver's matching engine
         findings = run_matching_engine(packages)
         return render_template('results.html', findings=findings, filename=file.filename)
 
     except UnicodeDecodeError:
-        flash('File encoding error: Uploaded binary or image file instead of a valid text file.', 'danger')
+        flash('Encoding Error: Binary or image file detected instead of a plain text file.', 'danger')
         return redirect(url_for('index'))
     except Exception as e:
-        flash(f'An unexpected error occurred while processing: {str(e)}', 'danger')
+        flash(f'An unexpected error occurred during processing: {str(e)}', 'danger')
         return redirect(url_for('index'))
 
+@app.route('/explain', methods=['POST'])
+def explain_finding():
+    data = request.json or {}
+    explanation = generate_ai_explanation(data)
+    return jsonify({'status': 'success', 'explanation': explanation})
 
 @app.route('/projects')
 def projects():
@@ -144,7 +165,7 @@ def status():
         status_info['mysql'] = 'Connected'
         conn.close()
     except Exception:
-         pass
+        pass
 
     try:
         mongo_col = get_mongo_collection()
