@@ -1,15 +1,65 @@
-## CodeLedger: Comprehensive Project Overview
-CodeLedger is an open-source supply chain security platform that localizes PyPI vulnerability data to audit application dependencies offline. The platform parses Open Source Vulnerabilities (OSV) records into a hybrid database architecture, correlates uploaded dependency manifests against known vulnerability ranges, and formats actionable security insights for developers.  
+# OSV Vulnerability Project
 
-## 1. Core Objectives and Value PropositionOffline Vulnerability Auditing: 
+## Member A - Pipeline Pioneer
 
-Localizes PyPI vulnerability data so security teams can scan dependency manifests without relying on live external APIs during deployment.   Hybrid Storage Architecture: Combines MySQL for relational schema constraints and indexing with MongoDB for flexible JSON document storage.   Semantic Version Range Matching: Compares uploaded package versions against vulnerability bounds to identify precise security matches.   AI-Assisted Remediation: Prepares structured vulnerability contexts for large language models to generate clear fix recommendations.  
-## 2. Team Personas and Core ResponsibilitiesThe Pioneer (Data Engineering):
-Builds the ETL pipeline (ingest.py) to parse raw OSV JSON snapshots (osv_parser.py) and write structured data directly to local MySQL and MongoDB instances.   The Architect (Database Architecture): Designs the relational database schema (schema.sql), provides seed data (seed.sql), writes complex JOIN queries (queries.sql), and optimizes indexes for heavy workloads.   The Weaver (Core Engine): Develops the core matching engine (engine.py, matcher.py) to query database records, compare version ranges, and reconcile relational and document object identifiers.   The Alchemist (Web UI and AI Integration): Constructs the Flask web interface (app.py, templates/), manages file upload endpoints for dependency manifests, and drafts the AI explanation prompt templates (prompts/explanation_prompt.txt).  
-## 3. Directory and File Descriptionsapp.py: 
-The main Flask application server that manages HTTP routes, handles file uploads, invokes the matching engine, and renders templates.   engine.py / matcher.py: The backend logic modules that parse package specifications and compare versions against MySQL and MongoDB vulnerability tables.   ingest.py / osv_parser.py: The data pipeline scripts that process raw OSV JSON files and populate the relational and document databases.   download_snapshot.py: A utility script designed to pull the latest OSV PyPI vulnerability dataset snapshot for local ingestion.   schema.sql / seed.sql: SQL scripts that define database tables, foreign key constraints, indexes, views, and initial baseline mock data.   crud_test.py: A functional testing script that verifies basic create, read, update, and delete database operations.   templates/: HTML templates used by Flask to render the file upload interface (import.html), interactive scan findings (results.html), database views (explorer.html), and system metrics (status.html).   static/style.css: The primary stylesheet that defines the layout and visual presentation of the web interface.   prompts/explanation_prompt.txt: A structured prompt template designed to pass vulnerability findings to an AI model for plain-language risk summaries and upgrade instructions.   
-## 4. End-to-End System WorkflowDataset Ingestion: 
-The Pioneer executes ingest.py to parse OSV records, populating MySQL relational tables and MongoDB document collections.   Manifest Upload: A developer accesses the Flask web portal at import.html and uploads a target requirements.txt manifest file.   Engine Execution: The Alchemist's application endpoint sends the parsed package specifications to the Weaver's matching engine (engine.py).   Database Querying: The engine searches MySQL for matching package version constraints and pulls deep JSON context from MongoDB using mapped identifiers.  
+### Week 1 - Foundation
+- `osv_parser.py` - parses OSV JSON -> Python dict -> CSV rows / SQL INSERT strings
+- `download_snapshot.py` - gets the raw PyPI snapshot into `data/raw/` (never committed)
+- `make_test_chunk.py` - builds a ~10MB messy test set to prove no `KeyError`
+- `sample_osv.json`, `vulnerabilities.csv`, `affected_packages.csv`, `sample_inserts.sql` - dummy data
 
-## Results Presentation:
-The Web UI dynamically renders matched CVE/OSV IDs, severity ratings, and vulnerability details on results.html.   AI Explanation Generation: The Alchemist feeds finding contexts into prompts/explanation_prompt.txt so an AI can generate plain-language explanations and exact upgrade commands.
+### Week 2 - Integration
+- `ingest.py` - loads OSV records into MySQL (Member B's `codeledger` schema) and the ORIGINAL
+  JSON into MongoDB (for Member C). Safe to re-run: upserts, no duplicates.
+- `requirements.txt` - pinned versions: `pip install -r requirements.txt`
+
+### Week 3 - Hardening
+**Speed.** `ingest.py` now writes each batch with a handful of multi-row statements instead of one
+statement per row. If a batch contains a bad record, the batch is rolled back and replayed one record
+at a time, so the bad record is logged and everything else still loads.
+Measured against a local MySQL-compatible server on synthetic OSV-shaped data: about 3-4x faster
+than the Week 2 version (e.g. ~2,600 vs ~820 records/s on 40,000 records), producing byte-identical
+tables. Real numbers depend on your machine; the log tells you yours. `--slow` forces the old path.
+
+**Metadata logs** (written to `output/` on every run):
+| File | What it holds |
+|---|---|
+| `import_history.log` | One line per run, appended: `Imported 24,774 records on 2026-10-17 | read=... failed=... | source sha256 | seconds | fingerprint` |
+| `ingest_summary.json` | Full details of the latest run: counts, failure reasons grouped, speed, snapshot hash |
+| `failed_records.csv` | Every record that failed, with the reason |
+| `warnings.csv` | Parts skipped inside otherwise-good records (e.g. an affected entry with no package name) |
+
+**Offline reproducibility.** `ingest.py` never touches the internet (only your MySQL/MongoDB).
+OSV republishes its snapshot daily, so the team pins ONE snapshot:
+- `snapshot_manifest.json` (committed) records the pinned zip's size, record count and SHA-256.
+- `ingest.py` hashes its input and warns if it is not the pinned snapshot.
+- `input_fingerprint` in the summary is a hash of every record loaded: two runs on the same
+  snapshot must print the same fingerprint, and produce identical database content.
+
+```
+python download_snapshot.py                    # first time only: download + pin
+python download_snapshot.py --verify           # does my data/raw/PyPI.zip match the pin?
+python download_snapshot.py --from-file X.zip  # OFFLINE: use the zip a teammate shared
+```
+
+Running with no internet:
+```
+# once, while online:
+pip download -r requirements.txt -d wheels      # (do NOT commit the wheels folder)
+# (wheels are OS/Python-specific: download them on the same kind of machine you'll install on)
+# on the offline machine:
+pip install --no-index --find-links wheels -r requirements.txt
+python download_snapshot.py --from-file /path/to/shared/PyPI.zip
+python ingest.py data/raw/PyPI.zip --init-schema --limit 25000
+```
+
+### Running the ingestion
+```
+python ingest.py data/raw/PyPI.zip --dry-run --limit 25000          # parse only, no DB
+python ingest.py data/raw/PyPI.zip --init-schema --limit 25000      # creates tables, loads 25k
+python ingest.py data/raw/PyPI.zip                                   # full ingestion
+```
+`--init-schema` runs Member B's `schema.sql` (looked up next to `ingest.py`; use
+`--schema-file path/to/schema.sql` if it lives elsewhere).
+Settings via env vars: MYSQL_HOST MYSQL_PORT MYSQL_USER MYSQL_PASSWORD MYSQL_DB MONGO_URI MONGO_DB
+(`MYSQL_DB` / `MONGO_DB` default to `codeledger`).
