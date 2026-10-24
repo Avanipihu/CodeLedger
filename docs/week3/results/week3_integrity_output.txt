@@ -1,0 +1,79 @@
+check_name	result
+target_database	codeledger_final
+table_name	row_count
+affected_package	27741
+affected_package_severity	1
+affected_range	27870
+affected_version	1414212
+ecosystems	11
+kev_cwe	1
+kev_entries	1
+kev_entry_cwe	1
+package_versions	14
+packages	13830
+project_dependencies	7
+projects	1
+range_event	56816
+scan_findings	12
+scans	2
+vulnerabilities	26241
+vulnerability_alias	35027
+vulnerability_kev	1
+vulnerability_reference	100143
+vulnerability_severity	14117
+check_name	violation_count
+packages_without_ecosystem	0
+versions_without_package	0
+aliases_without_vulnerability	0
+severities_without_vulnerability	0
+references_without_vulnerability	0
+affected_package_without_vulnerability	0
+affected_package_without_package	0
+affected_severity_without_parent	0
+affected_version_without_parent	0
+affected_range_without_parent	0
+range_event_without_range	0
+dependency_without_project	0
+dependency_without_version	0
+scan_without_project	0
+finding_without_scan	0
+finding_without_dependency	0
+finding_without_vulnerability	0
+finding_without_matched_range	0
+kev_cwe_without_entry	0
+kev_cwe_without_cwe	0
+vulnerability_kev_without_advisory	0
+vulnerability_kev_without_kev_entry	0
+check_name	violation_count
+scan_dependency_project_mismatch	0
+finding_range_vulnerability_or_package_mismatch	0
+TABLE_NAME	CONSTRAINT_NAME	REFERENCED_TABLE_NAME	DELETE_RULE	UPDATE_RULE
+affected_package	fk_affected_package	packages	RESTRICT	CASCADE
+affected_package	fk_affected_vulnerability	vulnerabilities	CASCADE	CASCADE
+affected_package_severity	fk_aps_affected_package	affected_package	CASCADE	CASCADE
+affected_range	fk_range_affected_package	affected_package	CASCADE	CASCADE
+affected_version	fk_version_affected_package	affected_package	CASCADE	CASCADE
+kev_entry_cwe	fk_kec_cwe	kev_cwe	RESTRICT	CASCADE
+kev_entry_cwe	fk_kec_entry	kev_entries	CASCADE	CASCADE
+package_versions	fk_package_version_package	packages	RESTRICT	CASCADE
+packages	fk_package_ecosystem	ecosystems	RESTRICT	CASCADE
+project_dependencies	fk_dependency_package_version	package_versions	RESTRICT	CASCADE
+project_dependencies	fk_dependency_project	projects	CASCADE	CASCADE
+range_event	fk_event_range	affected_range	CASCADE	CASCADE
+scan_findings	fk_finding_dependency	project_dependencies	CASCADE	CASCADE
+scan_findings	fk_finding_range	affected_range	SET NULL	CASCADE
+scan_findings	fk_finding_scan	scans	CASCADE	CASCADE
+scan_findings	fk_finding_vulnerability	vulnerabilities	RESTRICT	CASCADE
+scans	fk_scan_project	projects	CASCADE	CASCADE
+vulnerability_alias	fk_alias_vulnerability	vulnerabilities	CASCADE	CASCADE
+vulnerability_kev	fk_vulnerability_kev_advisory	vulnerabilities	CASCADE	CASCADE
+vulnerability_kev	fk_vulnerability_kev_entry	kev_entries	RESTRICT	CASCADE
+vulnerability_reference	fk_reference_vulnerability	vulnerabilities	CASCADE	CASCADE
+vulnerability_severity	fk_severity_vulnerability	vulnerabilities	CASCADE	CASCADE
+check_name	duplicate_groups
+duplicate_package_identity	0
+duplicate_package_version	0
+duplicate_alias	0
+duplicate_affected_package	0
+duplicate_range_event_order	0
+duplicate_scan_finding	0

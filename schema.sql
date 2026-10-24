@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS vulnerability_alias (
     UNIQUE KEY uq_vulnerability_alias
         (vulnerability_id, alias_value),
 
+    KEY idx_alias_value_vulnerability
+        (alias_value, vulnerability_id),
+
     CONSTRAINT fk_alias_vulnerability
         FOREIGN KEY (vulnerability_id)
         REFERENCES vulnerabilities(vulnerability_id)
