@@ -1,0 +1,2 @@
+[2026-10-24 19:14:14] Imported 5,000 records on 2026-10-24 | read=5,000 failed=0 warnings=0 | source=PyPI.zip sha256=95b325be6311 | 11.6s (431 rec/s) | fingerprint=a2bd09949306 | dry_run=False
+[2026-10-24 19:20:13] Imported 5,000 records on 2026-10-24 | read=5,000 failed=0 warnings=0 | source=PyPI.zip sha256=95b325be6311 | 14.0s (357 rec/s) | fingerprint=a2bd09949306 | dry_run=False
