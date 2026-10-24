@@ -1,0 +1,19 @@
+{
+  "imported_at": "2026-10-24",
+  "run_finished_at": "2026-10-24T19:20:13",
+  "message": "Imported 5,000 records on 2026-10-24",
+  "source": "PyPI.zip",
+  "source_sha256": "95b325be6311d4d9ee90adf4207e73194e92480c2a72a71bbc3ac39fc74e0be5",
+  "matches_pinned_snapshot": false,
+  "records_read": 5000,
+  "records_loaded": 5000,
+  "records_failed": 0,
+  "warnings": 0,
+  "failure_reasons": {},
+  "seconds": 14.0,
+  "records_per_second": 357.1,
+  "batch_size": 1000,
+  "slow_path_batches": 0,
+  "input_fingerprint": "a2bd099493066987e09d72c2655e856267e12d99a1058a1287ed38ac40feeb7e",
+  "dry_run": false
+}
