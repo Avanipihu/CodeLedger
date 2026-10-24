@@ -1,0 +1,6 @@
+phase	project_rows	dependency_rows
+before_update	1	7
+phase	project_rows	temporary_description_visible	dependency_rows
+inside_transaction_after_update	1	1	7
+phase	project_rows	temporary_description_remains	dependency_rows
+after_rollback	1	0	7

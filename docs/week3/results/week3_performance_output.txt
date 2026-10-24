@@ -1,0 +1,105 @@
+mysql_version	target_database
+8.0.46	codeledger_final
+Table	Op	Msg_type	Msg_text
+codeledger_final.packages	analyze	status	OK
+codeledger_final.package_versions	analyze	status	OK
+codeledger_final.affected_package	analyze	status	OK
+codeledger_final.affected_version	analyze	status	OK
+codeledger_final.affected_range	analyze	status	OK
+codeledger_final.range_event	analyze	status	OK
+codeledger_final.vulnerability_alias	analyze	status	OK
+codeledger_final.vulnerability_severity	analyze	status	OK
+codeledger_final.project_dependencies	analyze	status	OK
+codeledger_final.scans	analyze	status	OK
+codeledger_final.scan_findings	analyze	status	OK
+TABLE_NAME	estimated_rows	data_mb	index_mb
+affected_version	1406512	61.59	45.61
+vulnerabilities	21782	33.58	0.00
+vulnerability_reference	96384	12.52	3.52
+range_event	56857	3.52	1.52
+vulnerability_severity	14076	2.52	0.48
+vulnerability_alias	35137	2.52	2.52
+affected_range	27939	1.52	1.52
+packages	14283	1.52	1.52
+affected_package	27653	1.52	3.03
+project_dependencies	7	0.02	0.03
+vulnerability_kev	1	0.02	0.03
+scans	2	0.02	0.02
+scan_findings	12	0.02	0.06
+projects	1	0.02	0.00
+package_versions	14	0.02	0.02
+kev_entry_cwe	1	0.02	0.03
+kev_entries	1	0.02	0.02
+kev_cwe	1	0.02	0.00
+ecosystems	11	0.02	0.02
+affected_package_severity	1	0.02	0.02
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+ecosystems	0	PRIMARY	1	ecosystem_id	A	10	NULL	NULL		BTREE			YES	NULL
+ecosystems	0	uq_ecosystem_name	1	name	A	10	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+packages	0	PRIMARY	1	package_id	A	14283	NULL	NULL		BTREE			YES	NULL
+packages	0	uq_package_ecosystem_name	1	ecosystem_id	A	10	NULL	NULL		BTREE			YES	NULL
+packages	0	uq_package_ecosystem_name	2	name	A	12847	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+package_versions	0	PRIMARY	1	package_version_id	A	14	NULL	NULL		BTREE			YES	NULL
+package_versions	0	uq_package_version	1	package_id	A	6	NULL	NULL		BTREE			YES	NULL
+package_versions	0	uq_package_version	2	version	A	14	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+affected_package	0	PRIMARY	1	affected_package_id	A	27653	NULL	NULL		BTREE			YES	NULL
+affected_package	0	uq_vulnerability_package	1	vulnerability_id	A	26002	NULL	NULL		BTREE			YES	NULL
+affected_package	0	uq_vulnerability_package	2	package_id	A	27389	NULL	NULL		BTREE			YES	NULL
+affected_package	1	fk_affected_package	1	package_id	A	14396	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+affected_version	0	PRIMARY	1	affected_version_id	A	1406512	NULL	NULL		BTREE			YES	NULL
+affected_version	0	uq_affected_version	1	affected_package_id	A	13736	NULL	NULL		BTREE			YES	NULL
+affected_version	0	uq_affected_version	2	version	A	1406512	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+affected_range	0	PRIMARY	1	range_id	A	27939	NULL	NULL		BTREE			YES	NULL
+affected_range	0	uq_affected_range_ordinal	1	affected_package_id	A	22398	NULL	NULL		BTREE			YES	NULL
+affected_range	0	uq_affected_range_ordinal	2	range_ordinal	A	26831	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+range_event	0	PRIMARY	1	event_id	A	56857	NULL	NULL		BTREE			YES	NULL
+range_event	0	uq_range_event_order	1	range_id	A	28053	NULL	NULL		BTREE			YES	NULL
+range_event	0	uq_range_event_order	2	event_order	A	56857	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+vulnerability_alias	0	PRIMARY	1	alias_id	A	35137	NULL	NULL		BTREE			YES	NULL
+vulnerability_alias	0	uq_vulnerability_alias	1	vulnerability_id	A	13022	NULL	NULL		BTREE			YES	NULL
+vulnerability_alias	0	uq_vulnerability_alias	2	alias_value	A	35137	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+vulnerability_severity	0	PRIMARY	1	severity_id	A	14076	NULL	NULL		BTREE			YES	NULL
+vulnerability_severity	1	fk_severity_vulnerability	1	vulnerability_id	A	11210	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+project_dependencies	0	PRIMARY	1	dependency_id	A	7	NULL	NULL		BTREE			YES	NULL
+project_dependencies	1	idx_dependency_project	1	project_id	A	1	NULL	NULL		BTREE			YES	NULL
+project_dependencies	1	idx_dependency_version	1	package_version_id	A	7	NULL	NULL		BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+scans	0	PRIMARY	1	scan_id	A	2	NULL	NULL		BTREE			YES	NULL
+scans	1	idx_scan_project_date	1	project_id	A	1	NULL	NULL		BTREE			YES	NULL
+scans	1	idx_scan_project_date	2	started_at	A	2	NULL	NULL	YES	BTREE			YES	NULL
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Visible	Expression
+scan_findings	0	PRIMARY	1	finding_id	A	12	NULL	NULL		BTREE			YES	NULL
+scan_findings	0	uq_scan_dependency_vulnerability	1	scan_id	A	2	NULL	NULL		BTREE			YES	NULL
+scan_findings	0	uq_scan_dependency_vulnerability	2	dependency_id	A	10	NULL	NULL		BTREE			YES	NULL
+scan_findings	0	uq_scan_dependency_vulnerability	3	vulnerability_id	A	12	NULL	NULL		BTREE			YES	NULL
+scan_findings	1	idx_finding_vulnerability	1	vulnerability_id	A	5	NULL	NULL		BTREE			YES	NULL
+scan_findings	1	fk_finding_dependency	1	dependency_id	A	5	NULL	NULL		BTREE			YES	NULL
+scan_findings	1	fk_finding_range	1	matched_range_id	A	6	NULL	NULL	YES	BTREE			YES	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	e	NULL	const	PRIMARY,uq_ecosystem_name	uq_ecosystem_name	402	const	1	100.00	Using index
+1	SIMPLE	p	NULL	const	PRIMARY,uq_package_ecosystem_name	uq_package_ecosystem_name	1030	const,const	1	100.00	Using index
+1	SIMPLE	ap	NULL	ref	uq_vulnerability_package,fk_affected_package	fk_affected_package	8	const	16	100.00	NULL
+1	SIMPLE	v	NULL	eq_ref	PRIMARY	PRIMARY	402	codeledger_final.ap.vulnerability_id	1	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	re	NULL	ref	uq_range_event_order	uq_range_event_order	8	const	2	100.00	Using where
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	sf	NULL	ref	uq_scan_dependency_vulnerability	uq_scan_dependency_vulnerability	8	const	6	100.00	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	va	NULL	index	uq_vulnerability_alias	uq_vulnerability_alias	804	NULL	35137	10.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s	NULL	ref	idx_scan_project_date	idx_scan_project_date	8	const	2	100.00	Backward index scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	pd	NULL	ref	idx_dependency_project,idx_dependency_version	idx_dependency_project	8	const	7	100.00	NULL
+1	SIMPLE	pv	NULL	eq_ref	PRIMARY,uq_package_version	PRIMARY	8	codeledger_final.pd.package_version_id	1	100.00	NULL
+1	SIMPLE	p	NULL	eq_ref	PRIMARY,uq_package_ecosystem_name	PRIMARY	8	codeledger_final.pv.package_id	1	100.00	NULL
+1	SIMPLE	e	NULL	eq_ref	PRIMARY	PRIMARY	8	codeledger_final.p.ecosystem_id	1	100.00	NULL

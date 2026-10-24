@@ -1,0 +1,6 @@
+phase	project_rows	dependency_rows	scan_rows	finding_rows	shared_package_rows	shared_version_rows	shared_vulnerability_rows
+before_delete	1	7	2	12	13830	14	26241
+phase	project_rows	dependency_rows	scan_rows	finding_rows	shared_package_rows	shared_version_rows	shared_vulnerability_rows
+inside_transaction_after_delete	0	0	0	0	13830	14	26241
+phase	project_rows	dependency_rows	scan_rows	finding_rows	shared_package_rows	shared_version_rows	shared_vulnerability_rows
+after_rollback	1	7	2	12	13830	14	26241
