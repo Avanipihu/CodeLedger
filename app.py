@@ -138,10 +138,13 @@ def index():
     ]
     return render_template('import.html', recent_scans=recent_scans)
 
-@app.route('/upload', methods=['POST'])
+@app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
     if 'user' not in session:
         return redirect(url_for('login'))
+        
+    if request.method == 'GET':
+        return redirect(url_for('index'))
         
     raw_text = request.form.get('dependencies_text', '').strip()
     file = request.files.get('file') or request.files.get('requirements')
