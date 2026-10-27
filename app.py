@@ -66,6 +66,35 @@ def get_db_connection():
     except Exception:
         return None  # Return None gracefully if MySQL is offline
 
+def init_db():
+    conn = get_db_connection()
+    if conn:
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS projects (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS scans (
+                        scan_id INT AUTO_INCREMENT PRIMARY KEY,
+                        project_name VARCHAR(255) NOT NULL,
+                        scan_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        findings_count INT DEFAULT 0
+                    );
+                """)
+                conn.commit()
+        except Exception as e:
+            print(f"Database initialization error: {e}")
+        finally:
+            conn.close()
+
+# Initialize tables on startup
+init_db()
+
 def get_mongo_collection():
     client = pymongo.MongoClient(os.getenv('MONGO_URI', 'mongodb://localhost:27017/'))
     db = client[os.getenv('MONGO_DB', 'codeledger')]
@@ -193,7 +222,6 @@ def projects():
         finally:
             conn.close()
     else:
-        # Fallback dummy data so the page renders cleanly when MySQL is offline
         projects_data = [
             {"name": "sample-web-scanner", "created_at": "2026-03-01 12:00:00"},
             {"name": "api-gateway-audit", "created_at": "2026-03-05 14:30:00"}
