@@ -38,29 +38,50 @@ def _mysql_settings():
     return cfg
 
 
+def _truthy(v):
+    return (v or "").strip().lower() in ("1", "true", "yes")
+
+
 def _ssl_option(host):
+    """
+    TLS for MySQL (Aiven requires it).
+      MYSQL_SSL_CA        path to Aiven's ca.pem                (verified)
+      MYSQL_SSL_CA_PEM    the ca.pem CONTENT pasted as env var  (verified; easiest on Render)
+      MYSQL_SSL_INSECURE  true -> encrypt but don't verify      (testing only)
+    """
     ca = os.getenv("MYSQL_SSL_CA")
     if ca and os.path.exists(ca):
-        return {"ca": ca}
-    use_ssl = os.getenv("MYSQL_SSL", "").lower() in ("1", "true", "yes") or \
+        return ssl.create_default_context(cafile=ca)
+
+    pem = os.getenv("MYSQL_SSL_CA_PEM")
+    if pem:
+        return ssl.create_default_context(cadata=pem.replace("\\n", "\n"))
+
+    use_ssl = _truthy(os.getenv("MYSQL_SSL")) or \
         "aivencloud.com" in (host or "") or "aiven.io" in (host or "") or \
-        os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL")
-    if use_ssl:
-        ctx = ssl.create_default_context()
+        bool(os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL"))
+    if not use_ssl:
+        return None
+
+    ctx = ssl.create_default_context()
+    if _truthy(os.getenv("MYSQL_SSL_INSECURE")):
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
-        return ctx
-    return None
+    return ctx
 
 
 def connect_mysql():
     cfg = _mysql_settings()
-    return pymysql.connect(
-        host=cfg["host"], port=cfg["port"], user=cfg["user"],
-        password=cfg["password"], database=cfg["database"],
-        cursorclass=pymysql.cursors.DictCursor,
-        connect_timeout=5, ssl=_ssl_option(cfg["host"]),
-    )
+    try:
+        return pymysql.connect(
+            host=cfg["host"], port=cfg["port"], user=cfg["user"],
+            password=cfg["password"], database=cfg["database"],
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=15, ssl=_ssl_option(cfg["host"]),
+        )
+    except Exception as e:
+        # Say WHERE we tried to connect (never the password) so config mistakes are obvious.
+        raise type(e)(*e.args, f"[tried {cfg['host']}:{cfg['port']} as {cfg['user']}]") from e
 
 
 def get_db_connection():
