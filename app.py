@@ -16,15 +16,7 @@ try:
 except ImportError:
     pass
 
-# ----------------------------------------------------------------------------
-# Database connections (Aiven MySQL needs SSL + a custom port; Mongo may be Atlas)
-#
-# Either set one Aiven "Service URI":
-#     MYSQL_URI=mysql://avnadmin:PASSWORD@HOST:PORT/defaultdb?ssl-mode=REQUIRED
-# or the individual variables:
-#     MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB
-# Optional: MYSQL_SSL_CA=/path/to/ca.pem  (otherwise SSL is used without CA check)
-# ----------------------------------------------------------------------------
+# Database Settings & SSL Handling
 def _mysql_settings():
     cfg = {
         "host": os.getenv("MYSQL_HOST", "localhost"),
@@ -62,7 +54,6 @@ def _ssl_option(host):
 
 
 def connect_mysql():
-    """Raises on failure (used by the engine)."""
     cfg = _mysql_settings()
     return pymysql.connect(
         host=cfg["host"], port=cfg["port"], user=cfg["user"],
@@ -73,7 +64,6 @@ def connect_mysql():
 
 
 def get_db_connection():
-    """Returns None instead of raising so pages still render when MySQL is offline."""
     try:
         return connect_mysql()
     except Exception as e:
@@ -89,9 +79,7 @@ def get_mongo_collection():
     return client[os.getenv("MONGO_DB", "codeledger")]["vulnerabilities"]
 
 
-# ----------------------------------------------------------------------------
-# Matching engine (falls back to demo data if engine.py cannot be imported)
-# ----------------------------------------------------------------------------
+# Engine Import & Demo Fallback
 DEMO_FINDINGS = [
     {"package_name": "lodash", "version": "4.17.21", "vulnerability_id": "CVE-2021-23337",
      "severity": "High", "cvss_score": 7.5, "status": "Affected",
@@ -109,11 +97,10 @@ DEMO_FINDINGS = [
 
 try:
     import engine as _engine
-    # Make the engine use the same (Aiven / SSL aware) connections as the web app.
     _engine.get_mysql_connection = connect_mysql
     _engine.get_mongo_collection = get_mongo_collection
     ENGINE_OK = True
-except Exception as _e:  # missing module, missing dotenv, etc.
+except Exception as _e:
     print(f"[engine] not available, using demo data: {_e}")
     _engine = None
     ENGINE_OK = False
@@ -121,12 +108,10 @@ except Exception as _e:  # missing module, missing dotenv, etc.
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "alchemist-secret-key")
-app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2MB upload limit
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 
 class _CleanLoader(jinja2.FileSystemLoader):
-    """Some template files contain an old copy followed by the new copy, which makes Jinja
-    fail with 'block content defined twice'. Keep only the last {% extends %} section."""
     def get_source(self, environment, template):
         source, filename, uptodate = super().get_source(environment, template)
         parts = re.split(r"(?=\{%-?\s*extends\b)", source)
@@ -139,13 +124,11 @@ class _CleanLoader(jinja2.FileSystemLoader):
 app.jinja_loader = _CleanLoader(os.path.join(app.root_path, "templates"))
 
 FEEDBACK_STORE = []
-SCAN_LOG = []        # in-memory scan history (works even if MySQL is offline)
+SCAN_LOG = []
 LAST_SCAN = {"findings": [], "summary": None}
 
 
-# ----------------------------------------------------------------------------
-# Helpers
-# ----------------------------------------------------------------------------
+# Helper Methods
 def login_required():
     return "user" not in session
 
@@ -163,7 +146,6 @@ def parse_dependencies(text):
 
 
 def _cvss3_score(vector):
-    """Base score from a CVSS:3.x vector string, or None."""
     try:
         m = dict(p.split(":") for p in vector.split("/")[1:])
         av = {"N": .85, "A": .62, "L": .55, "P": .2}[m["AV"]]
@@ -198,8 +180,6 @@ def severity_band(score):
 
 
 def enrich_findings(findings):
-    """Normalise whatever the engine returns so the templates always get
-    severity (High/Medium/Low/...), cvss_score and status."""
     scores = {}
     conn = get_db_connection()
     if conn:
@@ -246,7 +226,6 @@ def summarise(findings):
 
 
 def run_scan(packages, project_name):
-    """Returns (findings, note). Never raises."""
     if not ENGINE_OK:
         return [dict(f) for f in DEMO_FINDINGS], "Matching engine not available - showing demo data."
     try:
@@ -289,7 +268,6 @@ def recent_scans(limit=None):
 
 
 def lookup_finding(vid):
-    """Best-effort details for one vulnerability: MySQL -> MongoDB -> last scan -> demo."""
     last = next((f for f in LAST_SCAN["findings"] if f["vulnerability_id"] == vid), None)
     out = {
         "vulnerability_id": vid,
@@ -365,9 +343,7 @@ def lookup_finding(vid):
     return out
 
 
-# ----------------------------------------------------------------------------
-# Routes
-# ----------------------------------------------------------------------------
+# Application Routes
 @app.errorhandler(413)
 def too_large(_e):
     flash("File too large (max 2MB).", "danger")
