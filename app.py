@@ -1,14 +1,12 @@
 import os
 import pymysql
 import pymongo
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
 
-# Import matching engine if available
 try:
     from engine import run_matching_engine
 except ImportError:
-    # Fallback mock for testing if engine is not present
     def run_matching_engine(packages):
         return [
             {
@@ -53,6 +51,9 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB file limit
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+# In-memory storage for feedback demonstration
+FEEDBACK_STORE = []
+
 def get_db_connection():
     return pymysql.connect(
         host=os.getenv('MYSQL_HOST', 'localhost'),
@@ -67,25 +68,37 @@ def get_mongo_collection():
     db = client[os.getenv('MONGO_DB', 'codeledger')]
     return db['vulnerabilities']
 
-def load_ai_prompt_template():
-    prompt_path = os.path.join(os.getcwd(), 'prompts', 'explanation_prompt.txt')
-    if os.path.exists(prompt_path):
-        with open(prompt_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    return "Explain vulnerability {vulnerability_id} for package {package_name} v{installed_version}."
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username == 'admin' and password == 'password123':
+            session['user'] = username
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Invalid username or password (try admin / password123)', 'danger')
+    return render_template('login.html')
 
-def generate_ai_explanation(finding):
-    explanation = (
-        f"Security Risk Analysis for {finding.get('vulnerability_id', 'Vulnerability')}:\n\n"
-        f"1. Explanation: The installed version ({finding.get('version')}) of "
-        f"'{finding.get('package_name', finding.get('package'))}' contains a known security flaw: {finding.get('summary')}.\n"
-        f"2. Potential Impact: Unauthenticated remote attackers may exploit this issue to trigger denial of service or unauthorized data exposure in production.\n"
-        f"3. Remediation Command: Run `pip install --upgrade {finding.get('package_name', finding.get('package'))}` to update to a non-vulnerable release."
-    )
-    return explanation
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        flash('Account registered successfully! Please log in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('signup.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    flash('Logged out successfully.', 'info')
+    return redirect(url_for('login'))
 
 @app.route('/', methods=['GET'])
 def index():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    
     recent_scans = [
         {"project": "web-app", "scanned_at": "2025-09-10 14:32", "status": "Completed", "findings": 3},
         {"project": "api-service", "scanned_at": "2025-09-09 11:20", "status": "Completed", "findings": 1},
@@ -95,24 +108,22 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+        
     raw_text = request.form.get('dependencies_text', '').strip()
     file = request.files.get('file') or request.files.get('requirements')
 
     packages = []
-
-    # Handle direct text input if pasted in form
     if raw_text:
-        lines = raw_text.splitlines()
-        for line in lines:
+        for line in raw_text.splitlines():
             line = line.strip()
             if line and not line.startswith('#') and '==' in line:
                 parts = line.split('==', 1)
                 packages.append((parts[0].strip(), parts[1].strip()))
-
-    # Handle uploaded file
     elif file and file.filename != '':
         if not file.filename.lower().endswith('.txt'):
-            flash('Invalid file format. Only plain text manifest files (.txt) are supported.', 'danger')
+            flash('Invalid file format. Only plain text (.txt) files are supported.', 'danger')
             return redirect(url_for('index'))
 
         filename = secure_filename(file.filename)
@@ -121,12 +132,11 @@ def upload_file():
 
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            for line in lines:
-                line = line.strip()
-                if line and not line.startswith('#') and '==' in line:
-                    parts = line.split('==', 1)
-                    packages.append((parts[0].strip(), parts[1].strip()))
+                for line in f.readlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and '==' in line:
+                        parts = line.split('==', 1)
+                        packages.append((parts[0].strip(), parts[1].strip()))
         except UnicodeDecodeError:
             flash('Encoding Error: Binary or non-text file detected.', 'danger')
             return redirect(url_for('index'))
@@ -139,30 +149,34 @@ def upload_file():
         return redirect(url_for('index'))
 
     findings = run_matching_engine(packages)
-    
-    # Calculate stats
-    total = len(findings)
-    high_count = sum(1 for f in findings if f.get('severity', '').lower() == 'high')
-    med_count = sum(1 for f in findings if f.get('severity', '').lower() == 'medium')
-    low_count = sum(1 for f in findings if f.get('severity', '').lower() == 'low')
-
     summary = {
-        'total': total,
-        'high': high_count,
-        'medium': med_count,
-        'low': low_count
+        'total': len(findings),
+        'high': sum(1 for f in findings if f.get('severity', '').lower() == 'high'),
+        'medium': sum(1 for f in findings if f.get('severity', '').lower() == 'medium'),
+        'low': sum(1 for f in findings if f.get('severity', '').lower() == 'low')
     }
 
     return render_template('results.html', findings=findings, summary=summary)
 
-@app.route('/explain', methods=['POST'])
-def explain_finding():
-    data = request.json or {}
-    explanation = generate_ai_explanation(data)
-    return jsonify({'status': 'success', 'explanation': explanation})
+@app.route('/feedback', methods=['GET', 'POST'])
+def feedback():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+        
+    if request.method == 'POST':
+        msg = request.form.get('feedback_message')
+        rating = request.form.get('rating')
+        if msg:
+            FEEDBACK_STORE.append({'user': session['user'], 'message': msg, 'rating': rating})
+            flash('Thank you! Your feedback has been submitted successfully.', 'success')
+        return redirect(url_for('feedback'))
+        
+    return render_template('feedback.html', feedbacks=FEEDBACK_STORE)
 
 @app.route('/projects')
 def projects():
+    if 'user' not in session:
+        return redirect(url_for('login'))
     projects_data = []
     conn = None
     try:
@@ -179,6 +193,8 @@ def projects():
 
 @app.route('/explorer')
 def explorer():
+    if 'user' not in session:
+        return redirect(url_for('login'))
     try:
         mongo_col = get_mongo_collection()
         docs = list(mongo_col.find({}, {'_id': 0}).limit(20))
@@ -188,7 +204,8 @@ def explorer():
 
 @app.route('/finding/<finding_id>')
 def finding_detail(finding_id):
-    # Mock finding for UI demonstration matching screenshot 3
+    if 'user' not in session:
+        return redirect(url_for('login'))
     finding = {
         "vulnerability_id": finding_id,
         "severity": "High",
@@ -206,6 +223,8 @@ def finding_detail(finding_id):
 
 @app.route('/history')
 def history():
+    if 'user' not in session:
+        return redirect(url_for('login'))
     scans_data = []
     conn = None
     try:
@@ -222,6 +241,8 @@ def history():
 
 @app.route('/status')
 def status():
+    if 'user' not in session:
+        return redirect(url_for('login'))
     status_info = {'mysql': 'Disconnected', 'mongo': 'Disconnected'}
     conn = None
     try:
