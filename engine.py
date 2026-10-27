@@ -160,7 +160,8 @@ def fetch_package_vulnerabilities(cursor, package_name: str) -> dict:
         LEFT JOIN range_event re ON ar.range_id = re.range_id
         WHERE e.name = %s
           AND LOWER(REPLACE(REPLACE(p.name, '_', '-'), '.', '-')) = %s
-        ORDER BY v.vulnerability_id, ar.range_id, re.event_id ASC;
+          AND (ar.range_type IS NULL OR ar.range_type IN ('ECOSYSTEM', 'SEMVER'))
+        ORDER BY v.vulnerability_id, ar.range_id, re.event_order ASC;
     """
     cursor.execute(query, (ECOSYSTEM, normalize_name(package_name)))
 
