@@ -1,56 +1,89 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+
+{% block title %}Import & Scan - CodeLedger{% block %}
 
 {% block content %}
-<div class="mb-4">
-    <h3 class="fw-bold">CodeLedger</h3>
-    <p class="text-muted">Software Composition Analysis - Scan your project dependencies against known vulnerabilities.</p>
-</div>
-
-<div class="row">
-    <div class="col-md-12 mb-4">
-        <div class="card card-custom p-4 text-center">
-            <form action="/upload" method="POST" enctype="multipart/form-data">
-                <div class="border border-2 border-dashed rounded p-4 mb-3">
-                    <i class="bi bi-upload text-primary display-5"></i>
-                    <h5 class="mt-3">Upload requirements.txt or paste dependencies</h5>
-                    <p class="text-muted small">Supports requirements.txt format (e.g. lodash==4.17.21)</p>
-                    
-                    <input type="file" name="file" class="form-control w-50 mx-auto my-3" accept=".txt">
-                    <textarea name="dependencies_text" class="form-control w-50 mx-auto" rows="3" placeholder="Or paste requirements here... e.g. express==4.18.2"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary px-5 fw-bold">Start Scan</button>
-            </form>
-        </div>
+<div class="max-w-4xl mx-auto space-y-8">
+    
+    <!-- Header Section -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h2 class="text-2xl font-bold text-gray-900">CodeLedger</h2>
+        <p class="text-sm text-gray-600 mt-1">Software Composition Analysis - Scan your project dependencies against known vulnerabilities.</p>
     </div>
 
-    <!-- Recent Scans Section -->
-    <div class="col-md-12">
-        <div class="card card-custom p-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold mb-0">Recent Scans</h5>
-                <a href="/history" class="text-decoration-none small">View All</a>
+    <!-- Upload / Scan Card -->
+    <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+        <form action="{{ url_for('upload_file') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+            
+            <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50/50 hover:bg-gray-50 transition">
+                <div class="max-w-md mx-auto space-y-4">
+                    <i class="fa-solid fa-cloud-arrow-up text-4xl text-blue-500"></i>
+                    <div>
+                        <p class="text-sm font-medium text-gray-700">Upload requirements.txt or paste dependencies</p>
+                        <p class="text-xs text-gray-500 mt-0.5">Supports standard requirements format (e.g. lodash==4.17.21)</p>
+                    </div>
+
+                    <!-- File input & Textarea grid -->
+                    <div class="grid grid-cols-1 gap-4 pt-2">
+                        <div>
+                            <input type="file" name="file" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                        </div>
+                        <div>
+                            <textarea name="dependencies_text" rows="3" placeholder="Or paste requirements here... e.g. express==4.18.2" class="w-full px-3 py-2 text-sm text-gray-800 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <table class="table table-hover align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th>Project</th>
-                        <th>Scanned At</th>
-                        <th>Status</th>
-                        <th>Findings</th>
+
+            <div class="flex justify-center">
+                <button type="submit" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-md transition flex items-center gap-2">
+                    <i class="fa-solid fa-radar"></i> Start Scan
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Recent Scans Table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+            <h3 class="text-base font-semibold text-gray-800">Recent Scans</h3>
+            <a href="{{ url_for('history') }}" class="text-xs font-medium text-blue-600 hover:underline">View All</a>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-50/70 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-100">
+                        <th class="py-3 px-6 font-semibold">Project</th>
+                        <th class="py-3 px-6 font-semibold">Scanned At</th>
+                        <th class="py-3 px-6 font-semibold">Status</th>
+                        <th class="py-3 px-6 font-semibold">Findings</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for scan in recent_scans %}
-                    <tr>
-                        <td class="fw-semibold">{{ scan.project }}</td>
-                        <td class="text-muted">{{ scan.scanned_at }}</td>
-                        <td><span class="badge bg-success-subtle text-success border border-success">{{ scan.status }}</span></td>
-                        <td><span class="fw-bold text-danger">{{ scan.findings }}</span></td>
-                    </tr>
-                    {% endfor %}
+                <tbody class="divide-y divide-gray-100 text-sm text-gray-700">
+                    {% if recent_scans %}
+                        {% for scan in recent_scans %}
+                        <tr class="hover:bg-gray-50/50 transition">
+                            <td class="py-4 px-6 font-medium text-gray-900">{{ scan.project }}</td>
+                            <td class="py-4 px-6 text-gray-500">{{ scan.scanned_at }}</td>
+                            <td class="py-4 px-6">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    {{ scan.status or 'Completed' }}
+                                </span>
+                            </td>
+                            <td class="py-4 px-6 font-semibold text-gray-800">{{ scan.findings }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="py-6 px-6 text-center text-gray-400 text-sm">No recent scans found.</td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
     </div>
+
 </div>
 {% endblock %}
