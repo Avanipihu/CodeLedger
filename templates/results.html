@@ -1,84 +1,71 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Scan Findings for <code>{{ filename }}</code></h2>
-    
-    {% if findings %}
-        <div class="alert alert-warning mt-3">
-            <strong>Vulnerabilities Detected!</strong> Below are the matched entries from the database. Click <strong>Generate AI Explanation</strong> on flagged packages to view mitigation steps.
-        </div>
-
-        <table class="table table-bordered table-striped mt-3">
-            <thead class="table-dark">
-                <tr>
-                    <th>Package</th>
-                    <th>Installed Version</th>
-                    <th>Vulnerability ID</th>
-                    <th>Severity</th>
-                    <th>Summary</th>
-                    <th>AI Explanation</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for finding in findings %}
-                <tr>
-                    <td><strong>{{ finding.package_name if finding.package_name else finding.get('package') }}</strong></td>
-                    <td>{{ finding.version if finding.version else finding.get('version') }}</td>
-                    <td><code>{{ finding.vulnerability_id if finding.vulnerability_id else finding.get('id') }}</code></td>
-                    <td>
-                        <span class="badge bg-danger">
-                            {{ finding.severity if finding.severity else 'HIGH' }}
-                        </span>
-                    </td>
-                    <td>{{ finding.summary if finding.summary else finding.get('details', 'N/A') }}</td>
-                    <td>
-                        <button class="btn btn-sm btn-info text-white" onclick='getAIExplanation({{ finding | tojson }})'>
-                            Generate AI Explanation
-                        </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Interactive AI Explanation Card -->
-        <div id="ai-explanation-box" class="card mt-4" style="display:none;">
-            <div class="card-header bg-dark text-white">
-                <strong>AI Finding Explanation & Remediation Guide</strong>
-            </div>
-            <div class="card-body">
-                <pre id="ai-explanation-content" style="white-space: pre-wrap; font-family: inherit; margin: 0;"></pre>
-            </div>
-        </div>
-    {% else %}
-        <div class="alert alert-success mt-3">
-            <strong>Clean Scan!</strong> No vulnerability matches were found.
-        </div>
-    {% endif %}
-
-    <a href="/" class="btn btn-primary mt-3">Upload Another Manifest</a>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold mb-0">Scan Results</h3>
+    <button class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> Download Report</button>
 </div>
 
-<script>
-function getAIExplanation(findingData) {
-    const box = document.getElementById('ai-explanation-box');
-    const content = document.getElementById('ai-explanation-content');
-    box.style.display = 'block';
-    content.innerText = 'Analyzing vulnerability context and generating remediation steps...';
+<!-- Summary Metric Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-danger">
+            <div class="text-muted small">Total Vulnerabilities</div>
+            <div class="fs-2 fw-bold text-danger">{{ summary.total }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-warning">
+            <div class="text-muted small">High Severity</div>
+            <div class="fs-2 fw-bold text-warning">{{ summary.high }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-info">
+            <div class="text-muted small">Medium Severity</div>
+            <div class="fs-2 fw-bold text-info">{{ summary.medium }}</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom p-3 border-start border-4 border-success">
+            <div class="text-muted small">Low Severity</div>
+            <div class="fs-2 fw-bold text-success">{{ summary.low }}</div>
+        </div>
+    </div>
+</div>
 
-    fetch('/explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(findingData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        content.innerText = data.explanation;
-    })
-    .catch(err => {
-        content.innerText = 'Error generating explanation: ' + err;
-    });
-}
-</script>
+<!-- Findings Table -->
+<div class="card card-custom p-4">
+    <h5 class="fw-bold mb-3">Findings</h5>
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Package</th>
+                <th>Version</th>
+                <th>Vulnerability</th>
+                <th>Severity</th>
+                <th>CVSS</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in findings %}
+            <tr>
+                <td class="fw-semibold">{{ item.package_name }}</td>
+                <td>{{ item.version }}</td>
+                <td><a href="/finding/{{ item.vulnerability_id }}" class="text-decoration-none fw-bold">{{ item.vulnerability_id }}</a></td>
+                <td>
+                    <span class="badge px-2 py-1 badge-severity-{{ item.severity|lower }}">
+                        {{ item.severity }}
+                    </span>
+                </td>
+                <td>{{ item.cvss_score }}</td>
+                <td><span class="badge badge-status-affected px-2 py-1">{{ item.status }}</span></td>
+                <td><a href="/finding/{{ item.vulnerability_id }}" class="btn btn-sm btn-light border">Details</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}
