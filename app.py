@@ -233,8 +233,10 @@ def run_scan(packages, project_name):
     except TypeError:
         return _engine.run_matching_engine(packages), None
     except Exception as e:
-        print(f"[engine] failed: {e}")
-        return [dict(f) for f in DEMO_FINDINGS], "Could not reach the databases - showing demo data."
+        import traceback
+        traceback.print_exc()
+        return [dict(f) for f in DEMO_FINDINGS], (
+            f"Scan failed ({type(e).__name__}: {e}) - showing demo data.")
 
 
 def recent_scans(limit=None):
