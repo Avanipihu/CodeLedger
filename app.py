@@ -2,6 +2,7 @@ import math
 import os
 import re
 import ssl
+import time
 from datetime import datetime
 from urllib.parse import urlparse, unquote
 
@@ -16,18 +17,21 @@ try:
 except ImportError:
     pass
 
-# Database Settings & SSL Handling
+
+# ==========================================================================
+# Database settings & SSL handling
+# ==========================================================================
 def _mysql_settings():
     cfg = {
-        "host": os.getenv("MYSQL_HOST", "localhost"),
-        "port": int(os.getenv("MYSQL_PORT", "3306")),
-        "user": os.getenv("MYSQL_USER", "root"),
+        "host": (os.getenv("MYSQL_HOST") or "localhost").strip(),
+        "port": int(os.getenv("MYSQL_PORT") or "3306"),
+        "user": (os.getenv("MYSQL_USER") or "root").strip(),
         "password": os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        "database": os.getenv("MYSQL_DB", "codeledger"),
+        "database": (os.getenv("MYSQL_DB") or "codeledger").strip(),
     }
     uri = os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL")
     if uri:
-        u = urlparse(uri)
+        u = urlparse(uri.strip())
         cfg.update(
             host=u.hostname or cfg["host"],
             port=u.port or cfg["port"],
@@ -45,27 +49,47 @@ def _truthy(v):
 def _ssl_option(host):
     """
     TLS for MySQL (Aiven requires it).
-      MYSQL_SSL_CA        path to Aiven's ca.pem                (verified)
-      MYSQL_SSL_CA_PEM    the ca.pem CONTENT pasted as env var  (verified; easiest on Render)
-      MYSQL_SSL_INSECURE  true -> encrypt but don't verify      (testing only)
+      MYSQL_SSL_CA        path to Aiven's ca.pem file
+      MYSQL_SSL_CA_PEM    the ca.pem TEXT pasted as an env var (easiest on Render)
+    With a CA given, the certificate chain IS verified. Hostname matching is
+    skipped because Aiven's CA signs the server cert for its own internal name.
+      MYSQL_SSL_INSECURE  true -> skip verification, only used when NO CA is given.
     """
-    ca = os.getenv("MYSQL_SSL_CA")
-    if ca and os.path.exists(ca):
-        return ssl.create_default_context(cafile=ca)
+    ca_file = (os.getenv("MYSQL_SSL_CA") or "").strip()
+    pem = (os.getenv("MYSQL_SSL_CA_PEM") or "").strip().strip("\"'")
+    insecure = _truthy(os.getenv("MYSQL_SSL_INSECURE"))
 
-    pem = os.getenv("MYSQL_SSL_CA_PEM")
-    if pem:
-        return ssl.create_default_context(cadata=pem.replace("\\n", "\n"))
-
-    use_ssl = _truthy(os.getenv("MYSQL_SSL")) or \
-        "aivencloud.com" in (host or "") or "aiven.io" in (host or "") or \
-        bool(os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL"))
-    if not use_ssl:
+    wants_ssl = (
+        bool(ca_file or pem)
+        or _truthy(os.getenv("MYSQL_SSL"))
+        or bool(os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL"))
+        or "aivencloud.com" in (host or "")
+        or "aiven.io" in (host or "")
+    )
+    if not wants_ssl:
         return None
 
-    ctx = ssl.create_default_context()
-    if _truthy(os.getenv("MYSQL_SSL_INSECURE")):
-        ctx.check_hostname = False
+    has_ca = False
+    try:
+        if ca_file and os.path.exists(ca_file):
+            ctx = ssl.create_default_context(cafile=ca_file)
+            has_ca = True
+        elif pem:
+            # Render/.env often store newlines as the two characters "\n".
+            ctx = ssl.create_default_context(
+                cadata=pem.replace("\\n", "\n").replace("\r", "").strip() + "\n")
+            has_ca = True
+        elif ca_file:
+            raise FileNotFoundError(f"MYSQL_SSL_CA points to a missing file: {ca_file}")
+        else:
+            ctx = ssl.create_default_context()
+    except ssl.SSLError as e:
+        raise ValueError(
+            "MYSQL_SSL_CA_PEM is not a valid certificate. Paste the WHOLE block from "
+            "-----BEGIN CERTIFICATE----- to -----END CERTIFICATE-----.") from e
+
+    ctx.check_hostname = False
+    if insecure and not has_ca:
         ctx.verify_mode = ssl.CERT_NONE
     return ctx
 
@@ -73,15 +97,20 @@ def _ssl_option(host):
 def connect_mysql():
     cfg = _mysql_settings()
     try:
-        return pymysql.connect(
+        kwargs = dict(
             host=cfg["host"], port=cfg["port"], user=cfg["user"],
             password=cfg["password"], database=cfg["database"],
             cursorclass=pymysql.cursors.DictCursor,
-            connect_timeout=15, ssl=_ssl_option(cfg["host"]),
+            connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT") or "15"),
         )
+        ssl_opt = _ssl_option(cfg["host"])
+        if ssl_opt is not None:
+            kwargs["ssl"] = ssl_opt
+        return pymysql.connect(**kwargs)
     except Exception as e:
         # Say WHERE we tried to connect (never the password) so config mistakes are obvious.
-        raise type(e)(*e.args, f"[tried {cfg['host']}:{cfg['port']} as {cfg['user']}]") from e
+        raise ConnectionError(
+            f"{type(e).__name__}: {e} [tried {cfg['host']}:{cfg['port']} as {cfg['user']}]") from e
 
 
 def get_db_connection():
@@ -92,15 +121,30 @@ def get_db_connection():
         return None
 
 
-def get_mongo_collection():
-    client = pymongo.MongoClient(
-        os.getenv("MONGO_URI", "mongodb://localhost:27017/"),
-        serverSelectionTimeoutMS=3000,
-    )
-    return client[os.getenv("MONGO_DB", "codeledger")]["vulnerabilities"]
+_mongo_client = None
+_mongo_down_until = 0.0  # after a Mongo failure, skip it for a while (no 3s wait per page)
 
 
-# Engine Import & Demo Fallback
+def get_mongo_collection(force=False):
+    global _mongo_client
+    if not force and time.time() < _mongo_down_until:
+        raise ConnectionError("MongoDB was unreachable a moment ago; skipping retries for 60s.")
+    if _mongo_client is None:
+        _mongo_client = pymongo.MongoClient(
+            (os.getenv("MONGO_URI") or "mongodb://localhost:27017/").strip(),
+            serverSelectionTimeoutMS=3000,
+        )
+    return _mongo_client[os.getenv("MONGO_DB") or "codeledger"]["vulnerabilities"]
+
+
+def mark_mongo_down(seconds=60):
+    global _mongo_down_until
+    _mongo_down_until = time.time() + seconds
+
+
+# ==========================================================================
+# Engine import & demo fallback
+# ==========================================================================
 DEMO_FINDINGS = [
     {"package_name": "lodash", "version": "4.17.21", "vulnerability_id": "CVE-2021-23337",
      "severity": "High", "cvss_score": 7.5, "status": "Affected",
@@ -117,9 +161,7 @@ DEMO_FINDINGS = [
 ]
 
 try:
-    import engine as _engine
-    _engine.get_mysql_connection = connect_mysql
-    _engine.get_mongo_collection = get_mongo_collection
+    import engine as _engine   # engine.py has its own (identical) DB code
     ENGINE_OK = True
 except Exception as _e:
     print(f"[engine] not available, using demo data: {_e}")
@@ -130,6 +172,9 @@ except Exception as _e:
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "alchemist-secret-key")
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
+
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password123")
 
 
 class _CleanLoader(jinja2.FileSystemLoader):
@@ -145,12 +190,15 @@ class _CleanLoader(jinja2.FileSystemLoader):
 app.jinja_loader = _CleanLoader(os.path.join(app.root_path, "templates"))
 
 FEEDBACK_STORE = []
-SCAN_LOG = []
+SCAN_LOG = []          # only used when MySQL is down
 LAST_SCAN = {"findings": [], "summary": None}
 
 
-# Helper Methods
+# ==========================================================================
+# Helper methods
+# ==========================================================================
 def login_required():
+    """Returns True when the visitor is NOT logged in."""
     return "user" not in session
 
 
@@ -200,6 +248,10 @@ def severity_band(score):
     return "Unknown"
 
 
+_LABELS = {"CRITICAL": "Critical", "HIGH": "High", "MODERATE": "Medium",
+           "MEDIUM": "Medium", "LOW": "Low"}
+
+
 def enrich_findings(findings):
     scores = {}
     conn = get_db_connection()
@@ -223,12 +275,12 @@ def enrich_findings(findings):
         score = f.get("cvss_score")
         if not isinstance(score, (int, float)):
             score = scores.get(f["vulnerability_id"])
-        if score is None and raw.upper().startswith("CVSS:3"):
-            score = _cvss3_score(raw)
-        if raw.capitalize() in ("Critical", "High", "Medium", "Low"):
-            band = raw.capitalize()
-        else:
-            band = severity_band(score)
+        if score is None:
+            # engine.py sends the vector as "cvss_vector"; older code put it in "severity"
+            vector = f.get("cvss_vector") or (raw if raw.upper().startswith("CVSS:3") else None)
+            if vector:
+                score = _cvss3_score(vector)
+        band = _LABELS.get(raw.upper()) or severity_band(score)
         f["severity"] = band
         f["cvss_score"] = score if score is not None else "N/A"
         f.setdefault("status", "Affected")
@@ -251,17 +303,15 @@ def run_scan(packages, project_name):
         return [dict(f) for f in DEMO_FINDINGS], "Matching engine not available - showing demo data."
     try:
         return _engine.run_matching_engine(packages, project_name=project_name), None
-    except TypeError:
-        return _engine.run_matching_engine(packages), None
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return [dict(f) for f in DEMO_FINDINGS], (
-            f"Scan failed ({type(e).__name__}: {e}) - showing demo data.")
+        # Do NOT show fake demo vulnerabilities for a real upload; show the real error.
+        return [], f"Scan failed ({type(e).__name__}: {e})"
 
 
 def recent_scans(limit=None):
-    rows = list(reversed(SCAN_LOG))
+    rows, db_ok = [], False
     conn = get_db_connection()
     if conn:
         try:
@@ -277,16 +327,20 @@ def recent_scans(limit=None):
                         "scanned_at": r["started_at"].strftime("%Y-%m-%d %H:%M") if r["started_at"] else "-",
                         "status": (r["status"] or "").capitalize(), "findings": r["findings"],
                     })
+            db_ok = True
         except Exception as e:
             print(f"[scans] {e}")
         finally:
             conn.close()
-    if not rows and not conn:
-        rows = [
-            {"scan_id": 3, "project": "web-app", "scanned_at": "2025-09-10 14:32", "status": "Completed", "findings": 3},
-            {"scan_id": 2, "project": "api-service", "scanned_at": "2025-09-09 11:20", "status": "Completed", "findings": 1},
-            {"scan_id": 1, "project": "mobile-app", "scanned_at": "2025-09-08 16:45", "status": "Completed", "findings": 0},
-        ]
+
+    if not db_ok:
+        rows = list(reversed(SCAN_LOG))
+        if not rows:
+            rows = [
+                {"scan_id": 3, "project": "web-app", "scanned_at": "2025-09-10 14:32", "status": "Completed", "findings": 3},
+                {"scan_id": 2, "project": "api-service", "scanned_at": "2025-09-09 11:20", "status": "Completed", "findings": 1},
+                {"scan_id": 1, "project": "mobile-app", "scanned_at": "2025-09-08 16:45", "status": "Completed", "findings": 0},
+            ]
     return rows[:limit] if limit else rows
 
 
@@ -354,7 +408,7 @@ def lookup_finding(vid):
                     if sc is not None:
                         out["cvss_score"], out["severity"] = sc, severity_band(sc)
         except Exception:
-            pass
+            mark_mongo_down()
 
     if not found and not last:
         demo = next((d for d in DEMO_FINDINGS if d["vulnerability_id"] == vid), DEMO_FINDINGS[0])
@@ -366,7 +420,9 @@ def lookup_finding(vid):
     return out
 
 
-# Application Routes
+# ==========================================================================
+# Application routes
+# ==========================================================================
 @app.errorhandler(413)
 def too_large(_e):
     flash("File too large (max 2MB).", "danger")
@@ -376,11 +432,12 @@ def too_large(_e):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        if request.form.get("username") == "admin" and request.form.get("password") == "password123":
-            session["user"] = "admin"
+        if request.form.get("username") == ADMIN_USER and request.form.get("password") == ADMIN_PASSWORD:
+            session["user"] = ADMIN_USER
             flash("Logged in successfully!", "success")
             return redirect(url_for("index"))
-        flash("Invalid username or password (try admin / password123)", "danger")
+        hint = " (try admin / password123)" if ADMIN_PASSWORD == "password123" else ""
+        flash("Invalid username or password" + hint, "danger")
     return render_template("login.html")
 
 
@@ -516,8 +573,10 @@ def explorer():
         docs = list(get_mongo_collection().find({}, {"_id": 0}).limit(25))
         for d in docs:
             d["vulnerability_id"] = d.get("vulnerability_id") or d.get("id", "-")
-            d["summary"] = d.get("summary") or d.get("details", "")[:160]
+            d["summary"] = d.get("summary") or (d.get("details") or "")[:160]
     except Exception:
+        mark_mongo_down()
+        docs = []
         conn = get_db_connection()
         if conn:
             try:
@@ -562,12 +621,12 @@ def status():
         finally:
             conn.close()
     try:
-        get_mongo_collection().database.client.admin.command("ping")
+        get_mongo_collection(force=True).database.client.admin.command("ping")
         info["mongo"] = "Connected"
     except Exception:
-        pass
+        mark_mongo_down()
     return render_template("status.html", status=info)
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=_truthy(os.getenv("FLASK_DEBUG", "true")), port=int(os.getenv("PORT", "5000")))
