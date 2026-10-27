@@ -2,7 +2,7 @@
 Core matching and persistence engine for CodeLedger.
 Resolves OSV boundaries, enriches from MongoDB, and persists scan records in MySQL.
 
-Run `python matching_engine.py` directly to test both database connections.
+Run `python engine.py` directly to test both database connections.
 """
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import ssl
+import time
 from datetime import datetime
 from urllib.parse import unquote, urlparse
 
@@ -42,15 +43,15 @@ def _truthy(value: str | None) -> bool:
 # --------------------------------------------------------------------------
 def _mysql_settings() -> dict:
     cfg = {
-        "host": os.getenv("MYSQL_HOST", "localhost"),
-        "port": int(os.getenv("MYSQL_PORT", "3306")),
-        "user": os.getenv("MYSQL_USER", "root"),
+        "host": (os.getenv("MYSQL_HOST") or "localhost").strip(),
+        "port": int(os.getenv("MYSQL_PORT") or "3306"),
+        "user": (os.getenv("MYSQL_USER") or "root").strip(),
         "password": os.getenv("MYSQL_PASSWORD", os.getenv("DB_PASSWORD", "")),
-        "database": os.getenv("MYSQL_DB", "codeledger"),
+        "database": (os.getenv("MYSQL_DB") or "codeledger").strip(),
     }
     uri = os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL")
     if uri:
-        u = urlparse(uri)
+        u = urlparse(uri.strip())
         cfg.update(
             host=u.hostname or cfg["host"],
             port=u.port or cfg["port"],
@@ -63,34 +64,50 @@ def _mysql_settings() -> dict:
 
 def _ssl_option(host: str):
     """
-    - MYSQL_SSL_CA set          -> verify the server against that CA file (recommended).
-    - MYSQL_SSL_CA_PEM set      -> same, but the certificate text is in the env var (easiest on Render).
-    - SSL requested, no CA      -> verify against system CAs.
-    - MYSQL_SSL_INSECURE=true   -> skip verification (local dev only).
-    """
-    ca = os.getenv("MYSQL_SSL_CA")
-    if ca:
-        if not os.path.exists(ca):
-            raise FileNotFoundError(f"MYSQL_SSL_CA points to a missing file: {ca}")
-        return ssl.create_default_context(cafile=ca)
+    Builds the TLS context for MySQL (Aiven requires TLS).
 
-    pem = os.getenv("MYSQL_SSL_CA_PEM")
-    if pem:
-        return ssl.create_default_context(cadata=pem.replace("\\n", "\n"))
+    - MYSQL_SSL_CA      path to Aiven's ca.pem file
+    - MYSQL_SSL_CA_PEM  the ca.pem TEXT pasted into an env var (easiest on Render)
+    - With a CA given, the certificate chain IS verified. Hostname matching is
+      skipped because Aiven's CA signs the server cert for its own internal name.
+    - MYSQL_SSL_INSECURE=true only matters when NO CA is given (skips verification).
+    """
+    ca_file = (os.getenv("MYSQL_SSL_CA") or "").strip()
+    pem = (os.getenv("MYSQL_SSL_CA_PEM") or "").strip().strip("\"'")
+    insecure = _truthy(os.getenv("MYSQL_SSL_INSECURE"))
 
     wants_ssl = (
-        _truthy(os.getenv("MYSQL_SSL"))
+        bool(ca_file or pem)
+        or _truthy(os.getenv("MYSQL_SSL"))
+        or bool(os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL"))
         or "aivencloud.com" in (host or "")
         or "aiven.io" in (host or "")
-        or bool(os.getenv("MYSQL_URI") or os.getenv("DATABASE_URL"))
     )
     if not wants_ssl:
         return None
 
-    ctx = ssl.create_default_context()
-    if _truthy(os.getenv("MYSQL_SSL_INSECURE")):
+    has_ca = False
+    try:
+        if ca_file and os.path.exists(ca_file):
+            ctx = ssl.create_default_context(cafile=ca_file)
+            has_ca = True
+        elif pem:
+            # Render/.env often store newlines as the two characters "\n".
+            ctx = ssl.create_default_context(
+                cadata=pem.replace("\\n", "\n").replace("\r", "").strip() + "\n")
+            has_ca = True
+        elif ca_file:
+            raise FileNotFoundError(f"MYSQL_SSL_CA points to a missing file: {ca_file}")
+        else:
+            ctx = ssl.create_default_context()
+    except ssl.SSLError as e:
+        raise ValueError(
+            "MYSQL_SSL_CA_PEM is not a valid certificate. Paste the WHOLE block from "
+            "-----BEGIN CERTIFICATE----- to -----END CERTIFICATE-----.") from e
+
+    ctx.check_hostname = False
+    if insecure and not has_ca:
         log.warning("MySQL TLS verification is DISABLED (MYSQL_SSL_INSECURE).")
-        ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
     return ctx
 
@@ -101,7 +118,7 @@ def get_mysql_connection():
         host=cfg["host"], port=cfg["port"], user=cfg["user"],
         password=cfg["password"], database=cfg["database"],
         cursorclass=pymysql.cursors.DictCursor,
-        connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT", "15")),
+        connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT") or "15"),
     )
     ssl_opt = _ssl_option(cfg["host"])
     if ssl_opt is not None:
@@ -110,25 +127,35 @@ def get_mysql_connection():
         return pymysql.connect(**kwargs)
     except Exception as e:
         # Say WHERE we tried to connect (never the password) so config mistakes are obvious.
-        raise type(e)(*e.args, f"[tried {cfg['host']}:{cfg['port']} as {cfg['user']}]") from e
+        raise ConnectionError(
+            f"{type(e).__name__}: {e} [tried {cfg['host']}:{cfg['port']} as {cfg['user']}]") from e
 
 
 _mongo_client: pymongo.MongoClient | None = None
+_mongo_down_until = 0.0  # if Mongo failed recently, skip it for a while (no 3s wait per call)
 
 
 def get_mongo_collection():
     """Shared MongoClient (created once, reused)."""
     global _mongo_client
+    if time.time() < _mongo_down_until:
+        raise ConnectionError("MongoDB was unreachable a moment ago; skipping retries for 60s.")
     if _mongo_client is None:
         _mongo_client = pymongo.MongoClient(
-            os.getenv("MONGO_URI", "mongodb://localhost:27017/"),
+            (os.getenv("MONGO_URI") or "mongodb://localhost:27017/").strip(),
             serverSelectionTimeoutMS=3000,
         )
-    return _mongo_client[os.getenv("MONGO_DB", "codeledger")]["vulnerabilities"]
+    return _mongo_client[os.getenv("MONGO_DB") or "codeledger"]["vulnerabilities"]
+
+
+def mark_mongo_down(seconds: int = 60) -> None:
+    global _mongo_down_until
+    _mongo_down_until = time.time() + seconds
 
 
 def check_connections() -> dict:
     """Returns {'mysql': 'ok' | error text, 'mongo': 'ok' | error text}."""
+    global _mongo_down_until
     result = {}
     try:
         conn = get_mysql_connection()
@@ -139,6 +166,7 @@ def check_connections() -> dict:
     except Exception as e:
         result["mysql"] = f"{type(e).__name__}: {e}"
     try:
+        _mongo_down_until = 0.0  # a manual check should always really try
         get_mongo_collection().database.client.admin.command("ping")
         result["mongo"] = "ok"
     except Exception as e:
@@ -236,11 +264,12 @@ def extract_severity(raw_advisory: dict) -> tuple[str, str | None]:
 
 def fetch_advisories(mongo_col, vuln_ids: list[str]) -> dict:
     """One batched Mongo query. Degrades gracefully if Mongo is unavailable."""
-    if not vuln_ids:
+    if not vuln_ids or mongo_col is None:
         return {}
     try:
         return {d["id"]: d for d in mongo_col.find({"id": {"$in": vuln_ids}})}
     except Exception as e:
+        mark_mongo_down()
         log.warning("MongoDB enrichment unavailable (%s: %s); using MySQL data only.",
                     type(e).__name__, e)
         return {}
@@ -349,7 +378,14 @@ def run_matching_engine(
     """Main entrypoint invoked by Flask app.py."""
     started_at = datetime.now()
     findings: list[dict] = []
-    mongo_col = get_mongo_collection()
+
+    # MongoDB is optional enrichment: never let it break a scan.
+    try:
+        mongo_col = get_mongo_collection()
+    except Exception as e:
+        log.warning("MongoDB not available (%s); continuing without it.", e)
+        mongo_col = None
+
     mysql_conn = get_mysql_connection()
 
     try:
