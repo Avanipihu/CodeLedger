@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}CodeLedger - Software Composition Analysis{% endblock %}</title>
-    <!-- Tailwind CSS CDN for modern UI matching the CodeLedger design -->
+    <title>CodeLedger - Software Composition Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans antialiased">
 
@@ -15,38 +13,35 @@
         
         <!-- Sidebar Navigation -->
         <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl">
-            <!-- Brand Header -->
             <div class="h-16 flex items-center px-6 bg-slate-950 text-white font-bold text-xl tracking-wide gap-3">
                 <i class="fa-solid fa-shield-halved text-blue-500"></i>
                 <span>CodeLedger</span>
             </div>
 
-            <!-- Navigation Links -->
             <nav class="flex-1 px-4 py-6 space-y-1.5 text-sm font-medium overflow-y-auto">
-                <a href="{{ url_for('index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'index' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition bg-blue-600 text-white shadow-md">
                     <i class="fa-solid fa-house w-5"></i> Home
                 </a>
-                <a href="{{ url_for('import_manifest') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'import_manifest' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('import_manifest') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
                     <i class="fa-solid fa-file-arrow-up w-5"></i> Import
                 </a>
-                <a href="{{ url_for('projects') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'projects' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('projects') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
                     <i class="fa-solid fa-folder-open w-5"></i> Projects
                 </a>
-                <a href="{{ url_for('scan') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'scan' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('scan') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
                     <i class="fa-solid fa-radar w-5"></i> Scan
                 </a>
-                <a href="{{ url_for('results') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'results' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('results') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
                     <i class="fa-solid fa-triangle-exclamation w-5"></i> Findings
                 </a>
-                <a href="{{ url_for('explorer') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'explorer' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('explorer') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
                     <i class="fa-solid fa-compass w-5"></i> Explorer
                 </a>
-                <a href="{{ url_for('history') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition {% if request.endpoint == 'history' %}bg-blue-600 text-white shadow-md{% endif %}">
+                <a href="{{ url_for('history') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
                     <i class="fa-solid fa-clock-rotate-left w-5"></i> History
                 </a>
             </nav>
 
-            <!-- Footer / Domain Info -->
             <div class="p-4 bg-slate-950 text-xs text-slate-500 border-t border-slate-800 flex items-center justify-between">
                 <span>Connected: <strong class="text-slate-400">aivon.in</strong></span>
                 <span class="inline-block w-2 h-2 rounded-full bg-emerald-500" title="System Online"></span>
@@ -55,35 +50,91 @@
 
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-hidden">
-            <!-- Top Header Navbar -->
             <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm">
-                <div class="flex items-center gap-4">
-                    <h1 class="text-xl font-semibold text-gray-800">Software Composition Analysis</h1>
-                </div>
-                <div class="flex items-center gap-4">
-                    <span class="text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">Secure Mode Active</span>
-                </div>
+                <h1 class="text-xl font-semibold text-gray-800">Software Composition Analysis Dashboard</h1>
+                <span class="text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">Online @ aivon.in</span>
             </header>
 
-            <!-- Scrollable Page Content -->
             <main class="flex-1 overflow-y-auto p-8">
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        <div class="mb-6 space-y-2">
-                            {% for category, message in messages %}
-                                <div class="p-4 rounded-lg text-sm border {% if category == 'success' %}bg-emerald-50 text-emerald-800 border-emerald-200{% else %}bg-red-50 text-red-800 border-red-200{% endif %}">
-                                    {{ message }}
-                                </div>
-                            {% endfor %}
+                <!-- Summary Metric Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Total Vulnerabilities</p>
+                            <h3 class="text-3xl font-bold text-red-600 mt-1">3</h3>
                         </div>
-                    {% endif %}
-                {% endwith %}
+                        <div class="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-600"><i class="fa-solid fa-bug text-xl"></i></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">High Severity</p>
+                            <h3 class="text-3xl font-bold text-orange-600 mt-1">1</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-600"><i class="fa-solid fa-fire text-xl"></i></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Medium Severity</p>
+                            <h3 class="text-3xl font-bold text-amber-500 mt-1">1</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Low Severity</p>
+                            <h3 class="text-3xl font-bold text-emerald-600 mt-1">1</h3>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600"><i class="fa-solid fa-shield-check text-xl"></i></div>
+                    </div>
+                </div>
 
-                {% block content %}{% endblock %}
+                <!-- Recent Vulnerabilities Table -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                        <h3 class="font-semibold text-gray-800">Recent Vulnerability Findings</h3>
+                        <a href="#" class="text-sm text-blue-600 hover:underline font-medium">View All</a>
+                    </div>
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="text-xs font-semibold text-gray-500 uppercase bg-gray-100 border-b border-gray-200">
+                                <th class="px-6 py-3">Package</th>
+                                <th class="px-6 py-3">Version</th>
+                                <th class="px-6 py-3">Vulnerability</th>
+                                <th class="px-6 py-3">Severity</th>
+                                <th class="px-6 py-3">CVSS</th>
+                                <th class="px-6 py-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 text-sm">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 font-medium text-gray-900">lodash</td>
+                                <td class="px-6 py-4 text-gray-600">4.17.21</td>
+                                <td class="px-6 py-4 text-blue-600 font-mono">CVE-2021-23337</td>
+                                <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full">High</span></td>
+                                <td class="px-6 py-4 font-semibold">7.5</td>
+                                <td class="px-6 py-4 text-emerald-600 font-medium">Affected</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 font-medium text-gray-900">express</td>
+                                <td class="px-6 py-4 text-gray-600">4.18.2</td>
+                                <td class="px-6 py-4 text-blue-600 font-mono">CVE-2022-24999</td>
+                                <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full">Medium</span></td>
+                                <td class="px-6 py-4 font-semibold">5.3</td>
+                                <td class="px-6 py-4 text-emerald-600 font-medium">Affected</td>
+                            </tr>
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 font-medium text-gray-900">axios</td>
+                                <td class="px-6 py-4 text-gray-600">1.5.0</td>
+                                <td class="px-6 py-4 text-blue-600 font-mono">CVE-2023-45857</td>
+                                <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-full">Low</span></td>
+                                <td class="px-6 py-4 font-semibold">3.2</td>
+                                <td class="px-6 py-4 text-gray-500 font-medium">Not Affected</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </main>
         </div>
-
     </div>
-
 </body>
 </html>
