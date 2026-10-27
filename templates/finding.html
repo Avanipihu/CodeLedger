@@ -1,19 +1,43 @@
-{% extends "base.html" %}{% from "_macros.html" import sev %}
-{% block title %}{{ f.vuln_id }} - CodeLedger{% endblock %}
+{% extends 'base.html' %}
+
 {% block content %}
-<p><a href="{{ url_for('scan_results', pid=project.id) }}">Back to {{ project.name }}</a></p>
-<h1>{{ f.vuln_id }}</h1>
-<p>{{ sev(f.severity) }} Published score {{ f.score }}{% if f.kev %} <span class="badge kev">In CISA KEV</span>{% endif %}</p>
-<div class="panel"><p>{{ f.summary }}</p>
-<dl>
-<dt>Dependency</dt><dd>{{ f.package }} {{ f.version }}</dd>
-<dt>Affected range</dt><dd>{{ f.affected_range }}</dd>
-<dt>Fixed version</dt><dd>{{ f.fixed_in or "No fix published" }}</dd>
-<dt>Aliases</dt><dd>{{ f.aliases|join(", ") or "None" }}</dd>
-{% if f.kev %}<dt>KEV context</dt><dd>{{ f.kev_note }}</dd>{% endif %}
-</dl></div>
-<div class="panel"><h2>References</h2>
-{% for r in f.references %}<p><span class="muted">{{ r.type }}</span> <a href="{{ r.url }}" rel="noopener">{{ r.url }}</a></p>
-{% else %}<p class="muted">No references recorded.</p>{% endfor %}</div>
-<div class="panel"><h2>Explanation</h2><p class="muted">AI explanation arrives in Week 3.</p></div>
+<a href="/upload" class="text-decoration-none small text-muted"><i class="bi bi-arrow-left"></i> Back to Results</a>
+
+<div class="d-flex align-items-center gap-3 my-3">
+    <h3 class="fw-bold mb-0">{{ finding.vulnerability_id }}</h3>
+    <span class="badge badge-severity-high px-3 py-2 fs-6">{{ finding.severity }}</span>
+</div>
+
+<div class="card card-custom p-4 mb-4">
+    <div class="row mb-3">
+        <div class="col-md-3 text-muted">Package</div>
+        <div class="col-md-9 fw-semibold">{{ finding.package }}</div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-3 text-muted">Affected Version</div>
+        <div class="col-md-9">{{ finding.affected_version }}</div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-3 text-muted">Fixed Version</div>
+        <div class="col-md-9 text-success fw-bold">{{ finding.fixed_version }}</div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-3 text-muted">CVSS Score</div>
+        <div class="col-md-9 text-danger fw-bold">{{ finding.cvss_score }}</div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-3 text-muted">Description</div>
+        <div class="col-md-9">{{ finding.description }}</div>
+    </div>
+    <div class="row">
+        <div class="col-md-3 text-muted">References</div>
+        <div class="col-md-9">
+            <ul class="list-unstyled mb-0">
+                {% for ref in finding.references %}
+                <li><a href="{{ ref }}" target="_blank" class="text-decoration-none small">{{ ref }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
 {% endblock %}
