@@ -63,7 +63,8 @@ def _mysql_settings() -> dict:
 
 def _ssl_option(host: str):
     """
-    - MYSQL_SSL_CA set          -> verify the server against that CA (recommended).
+    - MYSQL_SSL_CA set          -> verify the server against that CA file (recommended).
+    - MYSQL_SSL_CA_PEM set      -> same, but the certificate text is in the env var (easiest on Render).
     - SSL requested, no CA      -> verify against system CAs.
     - MYSQL_SSL_INSECURE=true   -> skip verification (local dev only).
     """
@@ -72,6 +73,10 @@ def _ssl_option(host: str):
         if not os.path.exists(ca):
             raise FileNotFoundError(f"MYSQL_SSL_CA points to a missing file: {ca}")
         return ssl.create_default_context(cafile=ca)
+
+    pem = os.getenv("MYSQL_SSL_CA_PEM")
+    if pem:
+        return ssl.create_default_context(cadata=pem.replace("\\n", "\n"))
 
     wants_ssl = (
         _truthy(os.getenv("MYSQL_SSL"))
@@ -96,12 +101,16 @@ def get_mysql_connection():
         host=cfg["host"], port=cfg["port"], user=cfg["user"],
         password=cfg["password"], database=cfg["database"],
         cursorclass=pymysql.cursors.DictCursor,
-        connect_timeout=5,
+        connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT", "15")),
     )
     ssl_opt = _ssl_option(cfg["host"])
     if ssl_opt is not None:
         kwargs["ssl"] = ssl_opt
-    return pymysql.connect(**kwargs)
+    try:
+        return pymysql.connect(**kwargs)
+    except Exception as e:
+        # Say WHERE we tried to connect (never the password) so config mistakes are obvious.
+        raise type(e)(*e.args, f"[tried {cfg['host']}:{cfg['port']} as {cfg['user']}]") from e
 
 
 _mongo_client: pymongo.MongoClient | None = None
