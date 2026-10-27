@@ -105,51 +105,65 @@ def _get_table_columns(cursor, table_name: str) -> set[str]:
 def persist_scan_workflow(cursor, project_name: str, packages: list[tuple[str, str]], findings: list[dict]):
     """
     Persists project, scan, dependency, and finding records into MySQL.
-    Uses column introspection to remain resilient across schema revisions.
+    Navigates the 3NF normalized schema by resolving ecosystems, packages, and package_versions.
     """
-    # 1. Ensure Project exists
-    proj_cols = _get_table_columns(cursor, 'projects')
-    cursor.execute("SELECT project_id FROM projects WHERE project_name = %s LIMIT 1;", (project_name,))
+    # 1. Ensure Project exists (FIXED: column is 'name', not 'project_name')
+    cursor.execute("SELECT project_id FROM projects WHERE name = %s LIMIT 1;", (project_name,))
     proj = cursor.fetchone()
     if proj:
         project_id = proj['project_id']
     else:
-        cursor.execute("INSERT INTO projects (project_name) VALUES (%s);", (project_name,))
+        cursor.execute("INSERT INTO projects (name) VALUES (%s);", (project_name,))
         project_id = cursor.lastrowid
 
-    # 2. Create Scan record (supports started_at/completed_at or scan_timestamp)
-    scan_cols = _get_table_columns(cursor, 'scans')
-    if 'started_at' in scan_cols and 'completed_at' in scan_cols:
-        cursor.execute(
-            "INSERT INTO scans (project_id, status, started_at, completed_at) VALUES (%s, 'COMPLETED', NOW(), NOW());",
-            (project_id,)
-        )
-    else:
-        cursor.execute("INSERT INTO scans (project_id) VALUES (%s);", (project_id,))
+    # 2. Create Scan record
+    cursor.execute(
+        "INSERT INTO scans (project_id, source_filename, status, started_at, completed_at) VALUES (%s, 'requirements.txt', 'COMPLETED', NOW(), NOW());",
+        (project_id,)
+    )
     scan_id = cursor.lastrowid
 
-    # 3. Map & persist project dependencies
+    # 3. Map & persist normalized project dependencies
     dep_map = {}
-    try:
-        dep_table = 'project_dependencies' if _get_table_columns(cursor, 'project_dependencies') else 'project_dependency'
-    except Exception:
-        dep_table = None
-
     for pkg_name, ver in packages:
-        if dep_table:
-            dcols = _get_table_columns(cursor, dep_table)
-            if {'project_id', 'package_name', 'pinned_version'}.issubset(dcols):
-                cursor.execute(
-                    f"INSERT INTO `{dep_table}` (project_id, package_name, pinned_version) VALUES (%s, %s, %s);",
-                    (project_id, pkg_name, ver)
-                )
-                dep_map[(pkg_name, ver)] = cursor.lastrowid
+        # Resolve Ecosystem (Assuming PyPI as the MVP default)
+        cursor.execute("SELECT ecosystem_id FROM ecosystems WHERE name = 'PyPI' LIMIT 1;")
+        eco = cursor.fetchone()
+        if not eco:
+            cursor.execute("INSERT INTO ecosystems (name) VALUES ('PyPI');")
+            eco_id = cursor.lastrowid
+        else:
+            eco_id = eco['ecosystem_id']
+
+        # Resolve Canonical Package
+        cursor.execute("SELECT package_id FROM packages WHERE ecosystem_id = %s AND name = %s LIMIT 1;", (eco_id, pkg_name))
+        pkg = cursor.fetchone()
+        if pkg:
+            package_id = pkg['package_id']
+        else:
+            cursor.execute("INSERT INTO packages (ecosystem_id, name) VALUES (%s, %s);", (eco_id, pkg_name))
+            package_id = cursor.lastrowid
+            
+        # Resolve Package Version
+        cursor.execute("SELECT package_version_id FROM package_versions WHERE package_id = %s AND version = %s LIMIT 1;", (package_id, ver))
+        pver = cursor.fetchone()
+        if pver:
+            package_version_id = pver['package_version_id']
+        else:
+            cursor.execute("INSERT INTO package_versions (package_id, version) VALUES (%s, %s);", (package_id, ver))
+            package_version_id = cursor.lastrowid
+
+        # Link project to the resolved package_version_id
+        cursor.execute(
+            "INSERT INTO project_dependencies (project_id, package_version_id) VALUES (%s, %s);",
+            (project_id, package_version_id)
+        )
+        dep_map[(pkg_name, ver)] = cursor.lastrowid
 
     # 4. Persist confirmed findings
-    f_cols = _get_table_columns(cursor, 'scan_findings')
     for f in findings:
         dep_id = dep_map.get((f['package_name'], f['version']))
-        if {'scan_id', 'dependency_id', 'vulnerability_id', 'matched_range_id', 'match_basis'}.issubset(f_cols) and dep_id:
+        if dep_id:
             cursor.execute(
                 """
                 INSERT IGNORE INTO scan_findings 
