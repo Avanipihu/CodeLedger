@@ -76,13 +76,16 @@
                 <i class="bi bi-shield-check text-primary me-2"></i> CodeLedger
             </div>
             <nav class="mt-3">
-                <a href="/" class="{{ 'active' if request.path == '/' }}"><i class="bi bi-house-door"></i> Home</a>
-                <a href="/projects" class="{{ 'active' if request.path == '/projects' }}"><i class="bi bi-folder"></i> Projects</a>
-                <a href="/explorer" class="{{ 'active' if request.path == '/explorer' }}"><i class="bi bi-compass"></i> Explorer</a>
-                <a href="/history" class="{{ 'active' if request.path == '/history' }}"><i class="bi bi-clock-history"></i> History</a>
-                <a href="/feedback" class="{{ 'active' if request.path == '/feedback' }}"><i class="bi bi-chat-square-text"></i> Feedback</a>
-                <a href="/status" class="{{ 'active' if request.path == '/status' }}"><i class="bi bi-activity"></i> Status</a>
-            </nav>
+    <a href="/" class="{{ 'active' if request.path == '/' }}"><i class="bi bi-house-door"></i> Home</a>
+    <a href="/" class="{{ 'active' if request.path == '/import' }}"><i class="bi bi-upload"></i> Import</a>
+    <a href="/projects" class="{{ 'active' if request.path == '/projects' }}"><i class="bi bi-folder"></i> Projects</a>
+    <a href="/" class="{{ 'active' if request.path == '/scan' }}"><i class="bi bi-search"></i> Scan</a>
+    <a href="/upload" class="{{ 'active' if request.path == '/upload' }}"><i class="bi bi-shield-exclamation"></i> Findings</a>
+    <a href="/explorer" class="{{ 'active' if request.path == '/explorer' }}"><i class="bi bi-compass"></i> Explorer</a>
+    <a href="/history" class="{{ 'active' if request.path == '/history' }}"><i class="bi bi-clock-history"></i> History</a>
+    <a href="/feedback" class="{{ 'active' if request.path == '/feedback' }}"><i class="bi bi-chat-square-text"></i> Feedback</a>
+    <a href="/status" class="{{ 'active' if request.path == '/status' }}"><i class="bi bi-activity"></i> Status</a>
+    </nav>
         </div>
         
         <div class="sidebar-footer">
