@@ -3,138 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeLedger - Software Composition Analysis</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>{% block title %}CodeLedger - Software Composition Analysis{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --navy: #0f1f3d;
+            --navy-2: #1b2e52;
+            --blue: #2563eb;
+            --ink: #1e2a4a;
+            --muted: #6b7a99;
+            --line: #e3eaf6;
+        }
+        body {
+            background: linear-gradient(180deg, #f5f8fe 0%, #eef3fb 100%);
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--ink);
+            min-height: 100vh;
+        }
+
+        /* ---------- Sidebar ---------- */
+        .sidebar {
+            width: 220px; background: var(--navy); color: #fff;
+            position: fixed; top: 0; left: 0; bottom: 0;
+            display: flex; flex-direction: column; justify-content: space-between;
+            z-index: 100; overflow-y: auto;
+        }
+        .sidebar .brand { font-size: 1.05rem; font-weight: 700; padding: 22px 20px 14px; letter-spacing: .2px; }
+        .sidebar nav { padding: 6px 12px; }
+        .sidebar nav a {
+            color: #b4c0da; text-decoration: none; padding: 9px 12px; margin-bottom: 4px;
+            display: flex; align-items: center; gap: 12px; font-size: .9rem;
+            border-radius: 8px; transition: background .15s, color .15s;
+        }
+        .sidebar nav a:hover { color: #fff; background: var(--navy-2); }
+        .sidebar nav a.active { color: #fff; background: var(--blue); font-weight: 600; }
+        .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); font-size: .9rem; }
+        .sidebar-footer a { color: #fca5a5; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+
+        /* ---------- Layout ---------- */
+        .main-content { margin-left: 220px; padding: 28px 34px; max-width: 1200px; }
+        @media (max-width: 768px) {
+            .sidebar { position: static; width: 100%; min-height: 0; }
+            .sidebar nav { display: flex; flex-wrap: wrap; }
+            .main-content { margin-left: 0; padding: 18px; }
+        }
+        h3.fw-bold { color: var(--ink); font-size: 1.5rem; }
+        .text-muted { color: var(--muted) !important; }
+
+        /* ---------- Cards ---------- */
+        .card-custom {
+            border: 1px solid var(--line) !important; border-radius: 12px;
+            background: #fff; box-shadow: 0 2px 8px rgba(30,64,140,.05);
+        }
+
+        /* Upload dropzone (Home) */
+        .border-dashed { border-style: dashed !important; border-color: #b9cdf3 !important; background: #f8fbff; border-radius: 12px !important; }
+        .btn-primary { background: var(--blue); border-color: var(--blue); border-radius: 8px; }
+        .btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+        .btn-outline-primary { border-radius: 8px; color: var(--blue); border-color: var(--blue); }
+        .btn-outline-primary:hover { background: var(--blue); border-color: var(--blue); }
+        .form-control, .form-select { border-radius: 8px; border-color: #d3def2; }
+        .form-control:focus, .form-select:focus { border-color: var(--blue); box-shadow: 0 0 0 .2rem rgba(37,99,235,.15); }
+
+        /* ---------- Tables ---------- */
+        .table { font-size: .88rem; --bs-table-bg: transparent; }
+        .table thead th, .table-light { background: #f3f7fe !important; color: var(--muted); font-weight: 600; font-size: .78rem; border-bottom: 1px solid var(--line); }
+        .table td { border-color: var(--line); padding-top: .65rem; padding-bottom: .65rem; }
+        .table-hover > tbody > tr:hover > * { background: #f8fbff; }
+
+        /* ---------- Scan result tiles (results page) ---------- */
+        .row.g-3 > .col-md-3 > .card-custom { border-left-width: 1px !important; border-radius: 10px; }
+        .row.g-3 > .col-md-3:nth-child(1) > .card-custom { background: #fdecee; border-color: #f8c9cf !important; }
+        .row.g-3 > .col-md-3:nth-child(2) > .card-custom { background: #fff4e5; border-color: #fbdca8 !important; }
+        .row.g-3 > .col-md-3:nth-child(3) > .card-custom { background: #e8f2ff; border-color: #bcd6fa !important; }
+        .row.g-3 > .col-md-3:nth-child(4) > .card-custom { background: #e6f8ee; border-color: #b6e8cc !important; }
+        .row.g-3 .fs-2 { font-size: 1.8rem !important; line-height: 1.1; }
+        .row.g-3 > .col-md-3:nth-child(1) .fs-2 { color: #dc2626 !important; }
+        .row.g-3 > .col-md-3:nth-child(2) .fs-2 { color: #ea7b0c !important; }
+        .row.g-3 > .col-md-3:nth-child(3) .fs-2 { color: #2563eb !important; }
+        .row.g-3 > .col-md-3:nth-child(4) .fs-2 { color: #16a34a !important; }
+
+        /* ---------- Badges / pills ---------- */
+        .badge { border-radius: 999px; font-weight: 600; }
+        .badge-severity-critical { background: #7f1d1d; color: #fff; border: 1px solid #7f1d1d; }
+        .badge-severity-high     { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+        .badge-severity-medium   { background: #fef3c7; color: #d97706; border: 1px solid #fcd34d; }
+        .badge-severity-low      { background: #dbeafe; color: #2563eb; border: 1px solid #93c5fd; }
+        .badge-severity-unknown  { background: #e5e7eb; color: #4b5563; border: 1px solid #d1d5db; }
+        .badge-status-affected   { background: #d1fae5; color: #047857; border: 1px solid #6ee7b7; }
+
+        .list-group-item { border-color: var(--line); }
+        .alert { border-radius: 10px; }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans antialiased">
+<body>
 
-    <div class="flex h-screen overflow-hidden">
-        
-        <!-- Sidebar Navigation -->
-        <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl">
-            <div class="h-16 flex items-center px-6 bg-slate-950 text-white font-bold text-xl tracking-wide gap-3">
-                <i class="fa-solid fa-shield-halved text-blue-500"></i>
-                <span>CodeLedger</span>
-            </div>
-
-            <nav class="flex-1 px-4 py-6 space-y-1.5 text-sm font-medium overflow-y-auto">
-                <a href="{{ url_for('index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition bg-blue-600 text-white shadow-md">
-                    <i class="fa-solid fa-house w-5"></i> Home
-                </a>
-                <a href="{{ url_for('import_manifest') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
-                    <i class="fa-solid fa-file-arrow-up w-5"></i> Import
-                </a>
-                <a href="{{ url_for('projects') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
-                    <i class="fa-solid fa-folder-open w-5"></i> Projects
-                </a>
-                <a href="{{ url_for('scan') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
-                    <i class="fa-solid fa-radar w-5"></i> Scan
-                </a>
-                <a href="{{ url_for('results') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
-                    <i class="fa-solid fa-triangle-exclamation w-5"></i> Findings
-                </a>
-                <a href="{{ url_for('explorer') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
-                    <i class="fa-solid fa-compass w-5"></i> Explorer
-                </a>
-                <a href="{{ url_for('history') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800 hover:text-white transition">
-                    <i class="fa-solid fa-clock-rotate-left w-5"></i> History
-                </a>
+    <div class="sidebar">
+        <div>
+            <div class="brand"><i class="bi bi-shield-check text-primary me-2"></i>CodeLedger</div>
+            <nav>
+                {% set p = request.path %}
+                <a href="/"          class="{{ 'active' if p == '/' }}"><i class="bi bi-house-door"></i> Home</a>
+                <a href="/import"    class="{{ 'active' if p == '/import' }}"><i class="bi bi-upload"></i> Import</a>
+                <a href="/projects"  class="{{ 'active' if p == '/projects' }}"><i class="bi bi-folder2"></i> Projects</a>
+                <a href="/scan"      class="{{ 'active' if p == '/scan' }}"><i class="bi bi-search"></i> Scan</a>
+                <a href="/findings"  class="{{ 'active' if p in ('/findings', '/upload') or p.startswith('/finding/') }}"><i class="bi bi-bug"></i> Findings</a>
+                <a href="/explorer"  class="{{ 'active' if p == '/explorer' }}"><i class="bi bi-compass"></i> Explorer</a>
+                <a href="/history"   class="{{ 'active' if p == '/history' }}"><i class="bi bi-clock-history"></i> History</a>
+                <a href="/feedback"  class="{{ 'active' if p == '/feedback' }}"><i class="bi bi-chat-square-text"></i> Feedback</a>
+                <a href="/status"    class="{{ 'active' if p == '/status' }}"><i class="bi bi-activity"></i> Status</a>
             </nav>
-
-            <div class="p-4 bg-slate-950 text-xs text-slate-500 border-t border-slate-800 flex items-center justify-between">
-                <span>Connected: <strong class="text-slate-400">aivon.in</strong></span>
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500" title="System Online"></span>
-            </div>
-        </aside>
-
-        <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col overflow-hidden">
-            <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm">
-                <h1 class="text-xl font-semibold text-gray-800">Software Composition Analysis Dashboard</h1>
-                <span class="text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">Online @ aivon.in</span>
-            </header>
-
-            <main class="flex-1 overflow-y-auto p-8">
-                <!-- Summary Metric Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">Total Vulnerabilities</p>
-                            <h3 class="text-3xl font-bold text-red-600 mt-1">3</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-600"><i class="fa-solid fa-bug text-xl"></i></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">High Severity</p>
-                            <h3 class="text-3xl font-bold text-orange-600 mt-1">1</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-orange-600"><i class="fa-solid fa-fire text-xl"></i></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">Medium Severity</p>
-                            <h3 class="text-3xl font-bold text-amber-500 mt-1">1</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-500"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">Low Severity</p>
-                            <h3 class="text-3xl font-bold text-emerald-600 mt-1">1</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600"><i class="fa-solid fa-shield-check text-xl"></i></div>
-                    </div>
-                </div>
-
-                <!-- Recent Vulnerabilities Table -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-                        <h3 class="font-semibold text-gray-800">Recent Vulnerability Findings</h3>
-                        <a href="#" class="text-sm text-blue-600 hover:underline font-medium">View All</a>
-                    </div>
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="text-xs font-semibold text-gray-500 uppercase bg-gray-100 border-b border-gray-200">
-                                <th class="px-6 py-3">Package</th>
-                                <th class="px-6 py-3">Version</th>
-                                <th class="px-6 py-3">Vulnerability</th>
-                                <th class="px-6 py-3">Severity</th>
-                                <th class="px-6 py-3">CVSS</th>
-                                <th class="px-6 py-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 text-sm">
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 font-medium text-gray-900">lodash</td>
-                                <td class="px-6 py-4 text-gray-600">4.17.21</td>
-                                <td class="px-6 py-4 text-blue-600 font-mono">CVE-2021-23337</td>
-                                <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-full">High</span></td>
-                                <td class="px-6 py-4 font-semibold">7.5</td>
-                                <td class="px-6 py-4 text-emerald-600 font-medium">Affected</td>
-                            </tr>
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 font-medium text-gray-900">express</td>
-                                <td class="px-6 py-4 text-gray-600">4.18.2</td>
-                                <td class="px-6 py-4 text-blue-600 font-mono">CVE-2022-24999</td>
-                                <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full">Medium</span></td>
-                                <td class="px-6 py-4 font-semibold">5.3</td>
-                                <td class="px-6 py-4 text-emerald-600 font-medium">Affected</td>
-                            </tr>
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 font-medium text-gray-900">axios</td>
-                                <td class="px-6 py-4 text-gray-600">1.5.0</td>
-                                <td class="px-6 py-4 text-blue-600 font-mono">CVE-2023-45857</td>
-                                <td class="px-6 py-4"><span class="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-full">Low</span></td>
-                                <td class="px-6 py-4 font-semibold">3.2</td>
-                                <td class="px-6 py-4 text-gray-500 font-medium">Not Affected</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </main>
+        </div>
+        <div class="sidebar-footer">
+            <a href="/logout"><i class="bi bi-box-arrow-right"></i> Logout</a>
         </div>
     </div>
+
+    <div class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Colour every severity badge from its own text (e.g. the detail page badge).
+        document.querySelectorAll('.badge').forEach(function (b) {
+            var t = b.textContent.trim().toLowerCase();
+            if (['critical', 'high', 'medium', 'low', 'unknown'].indexOf(t) > -1 &&
+                (b.className.indexOf('badge-severity') > -1)) {
+                b.className = b.className.replace(/badge-severity-\w+/g, '') + ' badge-severity-' + t;
+            }
+        });
+
+        // "Download Report" button on the results page -> CSV of the findings table.
+        document.querySelectorAll('button').forEach(function (btn) {
+            if (btn.textContent.indexOf('Download Report') === -1) return;
+            btn.addEventListener('click', function () {
+                var rows = document.querySelectorAll('table tr'), csv = [];
+                rows.forEach(function (tr) {
+                    var cells = Array.from(tr.querySelectorAll('th,td')).slice(0, 6)
+                        .map(function (c) { return '"' + c.innerText.trim().replace(/"/g, '""') + '"'; });
+                    csv.push(cells.join(','));
+                });
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([csv.join('\n')], { type: 'text/csv' }));
+                a.download = 'codeledger-report.csv';
+                a.click();
+            });
+        });
+    </script>
 </body>
 </html>
