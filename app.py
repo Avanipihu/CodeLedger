@@ -51,7 +51,6 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB file limit
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# In-memory storage for feedback demonstration
 FEEDBACK_STORE = []
 
 def get_db_connection():
@@ -185,7 +184,6 @@ def projects():
             cursor.execute("SELECT * FROM projects ORDER BY created_at DESC;")
             projects_data = cursor.fetchall()
     except Exception as e:
-        # This will show you the exact error on your screen instead of a 500 page!
         return f"<h3>Database / Route Error:</h3><pre>{str(e)}</pre><br><a href='/'>Go Home</a>"
     finally:
         if conn:
