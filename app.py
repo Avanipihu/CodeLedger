@@ -184,8 +184,9 @@ def projects():
         with conn.cursor() as cursor:
             cursor.execute("SELECT * FROM projects ORDER BY created_at DESC;")
             projects_data = cursor.fetchall()
-    except Exception:
-        pass
+    except Exception as e:
+        # This will show you the exact error on your screen instead of a 500 page!
+        return f"<h3>Database / Route Error:</h3><pre>{str(e)}</pre><br><a href='/'>Go Home</a>"
     finally:
         if conn:
             conn.close()
