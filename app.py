@@ -143,6 +143,7 @@ def upload_file():
     if 'user' not in session:
         return redirect(url_for('login'))
         
+    # Handle accidental or direct GET navigation from the sidebar gracefully
     if request.method == 'GET':
         return redirect(url_for('index'))
         
